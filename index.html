@@ -1,0 +1,447 @@
+<!-- index.html (FULL REPLACE) -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Videodroid</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">videodroid - by origami ultra</div>
+    <div class="top-actions">
+      <button id="btnExportImg" class="btn">export frame</button>
+      <button id="btnRec" class="btn">export webm</button>
+      <button id="btnExportMp4" class="btn">export mp4</button>
+      <a id="downloadLink" class="hidden" download></a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage">
+      <div id="dropzone" class="dropzone">
+        <div class="dz-inner">
+          <div class="camera">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9 7l1.2-2h3.6L15 7h2a3 3 0 013 3v7a3 3 0 01-3 3H7a3 3 0 01-3-3v-7a3 3 0 013-3h2z" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M12 17a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+          </div>
+          <div class="dz-text">
+            <div class="dz-title">tap to add</div>
+            <div class="dz-sub">image / video</div>
+          </div>
+
+          <!-- Mobile-friendly file input -->
+          <input id="fileInput" class="fileInput" type="file" accept="image/*,video/*" playsinline webkit-playsinline />
+        </div>
+      </div>
+
+      <div class="renderShell">
+        <canvas id="glcanvas"></canvas>
+        <video id="srcVideo" class="hidden" playsinline webkit-playsinline muted loop></video>
+        <img id="srcImage" class="hidden" alt="source"/>
+        <!-- overlay source -->
+<video id="ovlVideo" class="hidden" playsinline webkit-playsinline muted loop></video>
+<img id="ovlImage" class="hidden" alt="overlay"/>
+      </div>
+
+      <div class="statusbar">
+        <div id="statusLeft">no source loaded</div>
+        <div id="statusRight">ready</div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="panelHeader">
+        <div class="panelTitle">synth controls</div>
+        <div class="panelHint">mainbow-ish modules • realtime • tweakable</div>
+      </div>
+
+      <!-- INPUT -->
+      <div class="module">
+        <div class="moduleTitle">input</div>
+        <div class="row">
+          <button id="btnFitContain" class="btn small">contain</button>
+          <button id="btnFitCover" class="btn small">cover</button>
+          <button id="btnClear" class="btn small danger">clear</button>
+        </div>
+        <div class="row">
+  <button id="btnOverlay" class="btn small">add overlay</button>
+  <button id="btnClearOverlay" class="btn small danger">clear overlay</button>
+
+  <!-- hidden overlay input (mobile-friendly) -->
+  <input id="overlayInput" class="hidden" type="file" accept="image/*,video/*" playsinline webkit-playsinline />
+</div>
+        <div class="row">
+          <label class="toggle">
+            <input id="tglMirror" type="checkbox"/>
+            <span>mirror</span>
+          </label>
+          <label class="toggle">
+            <input id="tglFreeze" type="checkbox"/>
+            <span>freeze</span>
+          </label>
+          <label class="toggle">
+            <input id="tglAnimate" type="checkbox" checked/>
+            <span>animate effects</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CORE -->
+      <div class="module">
+        <div class="moduleTitle">core (color / phase)</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>hue</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kHue"></div>
+              <div class="val" id="vHue">0.000</div>
+            </div>
+            <input id="kHue" class="rangeHidden" type="range" min="-1" max="1" step="0.001" value="0"/>
+          </div>
+
+          <div class="knob">
+            <label>saturation</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kSat"></div>
+              <div class="val" id="vSat">1.000</div>
+            </div>
+            <input id="kSat" class="rangeHidden" type="range" min="0" max="2.5" step="0.001" value="1.0"/>
+          </div>
+
+          <div class="knob">
+            <label>contrast</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kCon"></div>
+              <div class="val" id="vCon">1.000</div>
+            </div>
+            <input id="kCon" class="rangeHidden" type="range" min="0" max="2.5" step="0.001" value="1.0"/>
+          </div>
+
+          <div class="knob">
+            <label>brightness</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kBri"></div>
+              <div class="val" id="vBri">0.000</div>
+            </div>
+            <input id="kBri" class="rangeHidden" type="range" min="-0.5" max="0.5" step="0.001" value="0"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- FEEDBACK -->
+      <div class="module">
+        <div class="moduleTitle">analog feedback</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>feedback</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kFb"></div>
+              <div class="val" id="vFb">0.780</div>
+            </div>
+            <input id="kFb" class="rangeHidden" type="range" min="0" max="0.985" step="0.0005" value="0.78"/>
+          </div>
+
+          <div class="knob">
+            <label>fb rotate</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kFbRot"></div>
+              <div class="val" id="vFbRot">0.020</div>
+            </div>
+            <input id="kFbRot" class="rangeHidden" type="range" min="-0.3" max="0.3" step="0.0005" value="0.02"/>
+          </div>
+
+          <div class="knob">
+            <label>fb zoom</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kFbZoom"></div>
+              <div class="val" id="vFbZoom">1.010</div>
+            </div>
+            <input id="kFbZoom" class="rangeHidden" type="range" min="0.80" max="1.20" step="0.0005" value="1.01"/>
+          </div>
+
+          <div class="knob">
+            <label>fb shift</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kFbShift"></div>
+              <div class="val" id="vFbShift">0.006</div>
+            </div>
+            <input id="kFbShift" class="rangeHidden" type="range" min="0" max="0.03" step="0.0001" value="0.006"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- WARP / SCAN / GLITCH -->
+      <div class="module">
+        <div class="moduleTitle">warp / scan / glitch</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>warp</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kWarp"></div>
+              <div class="val" id="vWarp">0.350</div>
+            </div>
+            <input id="kWarp" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.35"/>
+          </div>
+
+          <div class="knob">
+            <label>scanlines</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kScan"></div>
+              <div class="val" id="vScan">0.250</div>
+            </div>
+            <input id="kScan" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.25"/>
+          </div>
+
+          <div class="knob">
+            <label>glitch</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kGlitch"></div>
+              <div class="val" id="vGlitch">0.120</div>
+            </div>
+            <input id="kGlitch" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.12"/>
+          </div>
+
+          <div class="knob">
+            <label>symmetry</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kSym"></div>
+              <div class="val" id="vSym">0.000</div>
+            </div>
+            <input id="kSym" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DISTORT STAGES -->
+      <div class="module">
+        <div class="moduleTitle">distort stages</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>distort A</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kDistA"></div>
+              <div class="val" id="vDistA">0.200</div>
+            </div>
+            <input id="kDistA" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.20"/>
+          </div>
+
+          <div class="knob">
+            <label>distort B</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kDistB"></div>
+              <div class="val" id="vDistB">0.120</div>
+            </div>
+            <input id="kDistB" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.12"/>
+          </div>
+
+          <div class="knob">
+            <label>crush</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kCrush"></div>
+              <div class="val" id="vCrush">0.000</div>
+            </div>
+            <input id="kCrush" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+          <div class="knob">
+            <label>bleed</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kBleed"></div>
+              <div class="val" id="vBleed">0.150</div>
+            </div>
+            <input id="kBleed" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.15"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- EDGE / KEY / SOLAR / POST -->
+      <div class="module">
+        <div class="moduleTitle">edge / key / solar / poster</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>edge detect</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kEdge"></div>
+              <div class="val" id="vEdge">0.000</div>
+            </div>
+            <input id="kEdge" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+          <div class="knob">
+            <label>luma key</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kKey"></div>
+              <div class="val" id="vKey">0.000</div>
+            </div>
+            <input id="kKey" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+          <div class="knob">
+            <label>solarize</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kSol"></div>
+              <div class="val" id="vSol">0.000</div>
+            </div>
+            <input id="kSol" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+          <div class="knob">
+            <label>posterize</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kPost"></div>
+              <div class="val" id="vPost">0.000</div>
+            </div>
+            <input id="kPost" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
+          </div>
+
+          <div class="knob">
+            <label>threshold</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kThresh"></div>
+              <div class="val" id="vThresh">0.500</div>
+            </div>
+            <input id="kThresh" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.5"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CHROMA PHASE -->
+      <div class="module">
+        <div class="moduleTitle">chroma phase offsets</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>red phase</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kChR"></div>
+              <div class="val" id="vChR">0.060</div>
+            </div>
+            <input id="kChR" class="rangeHidden" type="range" min="-1" max="1" step="0.001" value="0.06"/>
+          </div>
+
+          <div class="knob">
+            <label>green phase</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kChG"></div>
+              <div class="val" id="vChG">-0.020</div>
+            </div>
+            <input id="kChG" class="rangeHidden" type="range" min="-1" max="1" step="0.001" value="-0.02"/>
+          </div>
+
+          <div class="knob">
+            <label>blue phase</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kChB"></div>
+              <div class="val" id="vChB">0.030</div>
+            </div>
+            <input id="kChB" class="rangeHidden" type="range" min="-1" max="1" step="0.001" value="0.03"/>
+          </div>
+
+          <div class="knob">
+            <label>phase rate</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kChRate"></div>
+              <div class="val" id="vChRate">0.550</div>
+            </div>
+            <input id="kChRate" class="rangeHidden" type="range" min="0" max="2" step="0.001" value="0.55"/>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ANALOG DIRT + CRT -->
+      <div class="module">
+        <div class="moduleTitle">analog dirt</div>
+        <div class="knobGrid">
+
+          <div class="knob">
+            <label>grain</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kGrain"></div>
+              <div class="val" id="vGrain">0.180</div>
+            </div>
+            <input id="kGrain" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.18"/>
+          </div>
+
+          <div class="knob">
+            <label>speckle</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kSpeck"></div>
+              <div class="val" id="vSpeck">0.060</div>
+            </div>
+            <input id="kSpeck" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.06"/>
+          </div>
+
+          <div class="knob">
+            <label>vignette</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kVig"></div>
+              <div class="val" id="vVig">0.220</div>
+            </div>
+            <input id="kVig" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.22"/>
+          </div>
+
+          <div class="knob">
+            <label>chroma noise</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kCNoise"></div>
+              <div class="val" id="vCNoise">0.100</div>
+            </div>
+            <input id="kCNoise" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.10"/>
+          </div>
+
+          <div class="knob">
+            <label>crt</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kCrt"></div>
+              <div class="val" id="vCrt">0.350</div>
+            </div>
+            <input id="kCrt" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.35"/>
+          </div>
+        <div class="knob">
+  <label>overlay opacity</label>
+  <div class="knobUI">
+    <div class="dial" data-for="kOvl"></div>
+    <div class="val" id="vOvl">0.500</div>
+  </div>
+  <input
+    id="kOvl"
+    class="rangeHidden"
+    type="range"
+    min="0"
+    max="1"
+    step="0.001"
+    value="0.5"
+  />
+</div>
+        </div>
+      </div>
+
+      <div class="module footerNote">
+        <div class="tiny">
+          tip: try feedback 0.85 + distort A/B + edge for “hardware” vibes. crt + chroma + grain = instant analog.
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- IMPORTANT: ffmpeg must load BEFORE app.js -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
