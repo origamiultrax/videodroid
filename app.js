@@ -1,10 +1,12 @@
-/* app.js (FULL REPLACE)
-   Videodroid — realtime visual synth (WebGL)
-   - Circular hardware knobs -> hidden range inputs
-   - CRT effect (kCrt)
-   - Animate effects toggle (tglAnimate)
-   - Mobile-friendly video loading
-   - Export: WebM (fast) + MP4 (convert via ffmpeg.wasm)
+/* Videodroid — realtime visual synth (WebGL)
+   FULL REPLACE — includes:
+   - mobile-safe upload (no JS click() for file input)
+   - reliable video load/play on iOS (tap canvas to start)
+   - UNPACK_FLIP_Y_WEBGL for correct orientation
+   - overlay (image/video) + opacity knob
+   - CRT knob (kCrt) in shader
+   - animate effects checkbox (freezes shader time when off)
+   - export frame + webm + mp4 (via ffmpeg.wasm)
 */
 
 const $ = (sel) => document.querySelector(sel);
@@ -18,10 +20,6 @@ const imgEl = $("#srcImage");
 
 const ovlVideoEl = $("#ovlVideo");
 const ovlImgEl = $("#ovlImage");
-const overlayInput = $("#overlayInput");
-const btnOverlay = $("#btnOverlay");
-const btnClearOverlay = $("#btnClearOverlay");
-
 
 const statusLeft = $("#statusLeft");
 const statusRight = $("#statusRight");
@@ -35,20 +33,17 @@ const btnFitContain = $("#btnFitContain");
 const btnFitCover = $("#btnFitCover");
 const btnClear = $("#btnClear");
 
+const btnOverlay = $("#btnOverlay");
+const btnClearOverlay = $("#btnClearOverlay");
+const overlayInput = $("#overlayInput");
+
 const tglMirror = $("#tglMirror");
 const tglFreeze = $("#tglFreeze");
 const tglAnimate = $("#tglAnimate");
 
-const stageEl = document.querySelector(".stage");
-
-function isMobile(){
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-/* -------------------- knobs -------------------- */
+/* -------------------- knob engine -------------------- */
 
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-
 function formatVal(v){
   const abs = Math.abs(v);
   if (abs >= 100) return v.toFixed(0);
@@ -71,13 +66,12 @@ function bindKnob(dialEl){
   if (!inputEl) return;
 
   if (!inputEl.dataset.default) inputEl.dataset.default = inputEl.value;
-
   const valEl = document.getElementById("v" + inputId.slice(1)); // kHue -> vHue
 
   const update = () => {
     setDialRotation(dialEl, inputEl);
     if (valEl) valEl.textContent = formatVal(parseFloat(inputEl.value));
-    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    inputEl.dispatchEvent(new Event("input", { bubbles:true }));
   };
 
   update();
@@ -138,10 +132,14 @@ function bindKnob(dialEl){
 
 function initKnobs(){
   document.querySelectorAll(".dial[data-for]").forEach(bindKnob);
+  // fill any readouts not yet updated
+  document.querySelectorAll("input[type=range].rangeHidden").forEach(inp=>{
+    const vId = "v" + inp.id.slice(1);
+    const vEl = document.getElementById(vId);
+    if (vEl) vEl.textContent = formatVal(parseFloat(inp.value));
+  });
 }
 initKnobs();
-
-/* -------------------- UI state -------------------- */
 
 let fitMode = "contain";
 btnFitContain.addEventListener("click", () => { fitMode = "contain"; });
@@ -149,7 +147,7 @@ btnFitCover.addEventListener("click", () => { fitMode = "cover"; });
 
 /* -------------------- WebGL setup -------------------- */
 
-const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true });
+const gl = canvas.getContext("webgl", { antialias:false, premultipliedAlpha:false, preserveDrawingBuffer:true });
 if (!gl) {
   alert("WebGL not supported in this browser.");
   throw new Error("WebGL not supported");
@@ -165,24 +163,24 @@ void main(){
 
 const FRAG = `
 precision highp float;
-
 varying vec2 vUv;
 
 uniform sampler2D uSrc;
 uniform sampler2D uFb;
-uniform vec2 uRes;
 uniform sampler2D uOvl;
-uniform float uHasOvl;
-uniform float uOvlOpacity;
-uniform vec2  uOvlSize;
 
+uniform vec2 uRes;
 uniform float uTime;
+
 uniform float uHasSrc;
 uniform float uMirror;
 uniform float uFreeze;
 uniform float uFitCover;
-
 uniform vec2  uSrcSize;
+
+uniform float uHasOvl;
+uniform vec2  uOvlSize;
+uniform float uOvlOpacity;
 
 uniform float uHue;
 uniform float uSat;
@@ -214,8 +212,8 @@ uniform float uThresh;
 uniform vec4  uChroma;
 uniform float uChRate;
 
-uniform vec4  uDirt;   // x grain, y speck, z vignette, w chroma noise
-uniform float uCrt;    // crt strength
+uniform vec4  uDirt;   // x grain, y speck, z vig, w chroma noise
+uniform float uCrt;    // crt amount
 
 float hash21(vec2 p){
   p = fract(p*vec2(123.34, 456.21));
@@ -251,9 +249,9 @@ float luma(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 vec2 fitUv(vec2 uv, vec2 srcSize, vec2 dstSize, float coverMode){
   float srcAR = srcSize.x / srcSize.y;
   float dstAR = dstSize.x / dstSize.y;
-
   vec2 outUv = uv;
-  if (coverMode < 0.5) {
+
+  if (coverMode < 0.5) { // contain
     if (dstAR > srcAR) {
       float scale = srcAR / dstAR;
       outUv.x = (uv.x - 0.5) / scale + 0.5;
@@ -261,7 +259,7 @@ vec2 fitUv(vec2 uv, vec2 srcSize, vec2 dstSize, float coverMode){
       float scale = dstAR / srcAR;
       outUv.y = (uv.y - 0.5) / scale + 0.5;
     }
-  } else {
+  } else { // cover
     if (dstAR > srcAR) {
       float scale = dstAR / srcAR;
       outUv.y = (uv.y - 0.5) * scale + 0.5;
@@ -292,7 +290,6 @@ vec3 postColor(vec3 col){
     float levels = mix(256.0, 3.0, clamp(uPost, 0.0, 1.0));
     col = floor(col * levels) / levels;
   }
-
   return clamp(col, 0.0, 1.0);
 }
 
@@ -329,12 +326,42 @@ float sobelEdgeLuma(sampler2D tex, vec2 uv){
 
   float gx = -tl - 2.0*l - bl + tr + 2.0*r + br;
   float gy = -tl - 2.0*t - tr + bl + 2.0*b + br;
-
   return sqrt(gx*gx + gy*gy);
+}
+
+/* CRT shaping: subtle barrel + mask + vignette */
+vec2 crtWarp(vec2 uv, float amt){
+  vec2 p = uv*2.0 - 1.0;
+  float r2 = dot(p,p);
+  float k = mix(0.0, 0.18, amt);
+  p *= 1.0 + k*r2;
+  return p*0.5 + 0.5;
+}
+
+vec3 shadowMask(vec2 uv, float amt, vec3 col){
+  if (amt < 0.001) return col;
+  float x = uv.x * uRes.x;
+  float m = sin(x*3.14159);
+  float s = mix(1.0, 0.92 + 0.08*m, amt);
+  col *= s;
+  // tiny RGB mask
+  float tri = fract(x/3.0);
+  vec3 mask = vec3(
+    smoothstep(0.0,0.6,1.0-abs(tri-0.2)),
+    smoothstep(0.0,0.6,1.0-abs(tri-0.5)),
+    smoothstep(0.0,0.6,1.0-abs(tri-0.8))
+  );
+  col *= mix(vec3(1.0), 0.92 + 0.08*mask, amt);
+  return col;
 }
 
 void main(){
   vec2 uv = vUv;
+
+  // CRT warp before anything else (so it feels like display)
+  if (uCrt > 0.001) {
+    uv = crtWarp(uv, uCrt);
+  }
 
   if (uMirror > 0.5) uv.x = 1.0 - uv.x;
 
@@ -369,16 +396,14 @@ void main(){
   uv = distortStage(uv, uDistB, 0.71);
 
   vec2 srcUv = fitUv(uv, uSrcSize, uRes, uFitCover);
-
-  vec2 ovlUv = fitUv(uv, uOvlSize, uRes, uFitCover);
-float ovlInBounds =
-  step(0.0, ovlUv.x) * step(0.0, ovlUv.y) *
-  step(ovlUv.x, 1.0) * step(ovlUv.y, 1.0);
-
-
   float inBounds =
     step(0.0, srcUv.x) * step(0.0, srcUv.y) *
     step(srcUv.x, 1.0) * step(srcUv.y, 1.0);
+
+  vec2 ovlUv = fitUv(uv, uOvlSize, uRes, uFitCover);
+  float ovlInBounds =
+    step(0.0, ovlUv.x) * step(0.0, ovlUv.y) *
+    step(ovlUv.x, 1.0) * step(ovlUv.y, 1.0);
 
   float ph = uTime * uChRate;
   vec2 phaseVec = vec2(cos(ph), sin(ph)) * (1.0 / min(uRes.x, uRes.y)) * 220.0;
@@ -408,11 +433,11 @@ float ovlInBounds =
 
   vec3 col = mix(src, fb, baseMix);
 
-  // overlay blend (simple opacity mix)
-if (uHasOvl > 0.5 && uOvlOpacity > 0.001 && ovlInBounds > 0.5) {
-  vec3 ovl = texture2D(uOvl, clamp(ovlUv, 0.0, 1.0)).rgb;
-  col = mix(col, ovl, clamp(uOvlOpacity, 0.0, 1.0));
-}
+  // overlay blend
+  if (uHasOvl > 0.5 && uOvlOpacity > 0.001 && ovlInBounds > 0.5) {
+    vec3 ovl = texture2D(uOvl, clamp(ovlUv, 0.0, 1.0)).rgb;
+    col = mix(col, ovl, clamp(uOvlOpacity, 0.0, 1.0));
+  }
 
   if (uBleed > 0.001) {
     vec2 px = 1.0 / uRes;
@@ -442,6 +467,8 @@ if (uHasOvl > 0.5 && uOvlOpacity > 0.001 && ovlInBounds > 0.5) {
     float line = sin((vUv.y * uRes.y) * 3.14159);
     float mask = mix(1.0, 0.82 + 0.18*line, s);
     col *= mask;
+    float tri = sin(vUv.x * uRes.x * 0.75);
+    col *= mix(1.0, 0.98 + 0.02*tri, s);
   }
 
   if (uCrush > 0.001) {
@@ -477,33 +504,13 @@ if (uHasOvl > 0.5 && uOvlOpacity > 0.001 && ovlInBounds > 0.5) {
     col *= mix(1.0, v, vig);
   }
 
-  // CRT
+  // CRT mask after everything
   if (uCrt > 0.001) {
-    float crt = clamp(uCrt, 0.0, 1.0);
-
-    float sl = sin(vUv.y * uRes.y * 3.14159);
-    col *= mix(1.0, 0.72 + 0.28*sl, crt);
-
-    float x = vUv.x * uRes.x;
-    float tri = fract(x / 3.0);
-    vec3 maskRGB = vec3(
-      smoothstep(0.0, 0.35, 1.0 - abs(tri - 0.17)),
-      smoothstep(0.0, 0.35, 1.0 - abs(tri - 0.50)),
-      smoothstep(0.0, 0.35, 1.0 - abs(tri - 0.83))
-    );
-    col *= mix(vec3(1.0), 0.82 + 0.18*maskRGB, crt);
-
-    vec2 px = 1.0 / uRes;
-    vec3 blur = texture2D(uFb, fbUv + vec2(-1.0, 0.0)*px).rgb
-              + texture2D(uFb, fbUv).rgb
-              + texture2D(uFb, fbUv + vec2( 1.0, 0.0)*px).rgb;
-    blur /= 3.0;
-    col = mix(col, max(col, blur*1.05), crt*0.35);
-
+    col = shadowMask(vUv, uCrt, col);
+    // extra vignette
     vec2 q = vUv*2.0 - 1.0;
-    float r2 = dot(q,q);
-    float cv = smoothstep(1.05, 0.15, r2);
-    col *= mix(1.0, cv, crt*0.85);
+    float vv = smoothstep(1.18, 0.22, dot(q,q));
+    col *= mix(1.0, vv, uCrt*0.9);
   }
 
   col = postColor(col);
@@ -551,19 +558,20 @@ gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 const U = {
   uSrc: gl.getUniformLocation(prog, "uSrc"),
   uFb: gl.getUniformLocation(prog, "uFb"),
+  uOvl: gl.getUniformLocation(prog, "uOvl"),
+
   uRes: gl.getUniformLocation(prog, "uRes"),
   uTime: gl.getUniformLocation(prog, "uTime"),
+
   uHasSrc: gl.getUniformLocation(prog, "uHasSrc"),
   uMirror: gl.getUniformLocation(prog, "uMirror"),
   uFreeze: gl.getUniformLocation(prog, "uFreeze"),
   uFitCover: gl.getUniformLocation(prog, "uFitCover"),
   uSrcSize: gl.getUniformLocation(prog, "uSrcSize"),
 
-  uOvl: gl.getUniformLocation(prog, "uOvl"),
   uHasOvl: gl.getUniformLocation(prog, "uHasOvl"),
-  uOvlOpacity: gl.getUniformLocation(prog, "uOvlOpacity"),
   uOvlSize: gl.getUniformLocation(prog, "uOvlSize"),
-
+  uOvlOpacity: gl.getUniformLocation(prog, "uOvlOpacity"),
 
   uHue: gl.getUniformLocation(prog, "uHue"),
   uSat: gl.getUniformLocation(prog, "uSat"),
@@ -599,7 +607,7 @@ const U = {
   uCrt: gl.getUniformLocation(prog, "uCrt"),
 };
 
-// textures
+// textures: source + overlay + feedback pingpong
 function makeTex(w, h) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
@@ -634,7 +642,6 @@ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE,
   new Uint8Array([0,0,0,255, 0,0,0,255, 0,0,0,255, 0,0,0,255])
 );
 
-// overlay texture
 const ovlTex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, ovlTex);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -645,7 +652,7 @@ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE,
   new Uint8Array([0,0,0,255, 0,0,0,255, 0,0,0,255, 0,0,0,255])
 );
 
-// samplers
+// bind samplers
 gl.uniform1i(U.uSrc, 0);
 gl.uniform1i(U.uFb, 1);
 gl.uniform1i(U.uOvl, 2);
@@ -678,25 +685,28 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-/* -------------------- media loading -------------------- */
+/* -------------------- Media state + helpers -------------------- */
 
 let hasSrc = false;
 let srcSize = { w: 1, h: 1 };
 let srcType = "none";
-let currentObjectUrl = null;
+let srcObjectUrl = null;
 
 let hasOvl = false;
 let ovlSize = { w: 1, h: 1 };
-let ovlType = "none"; // "video" | "image" | "none"
+let ovlType = "none";
 let ovlObjectUrl = null;
 
 function setStatus(left, right) {
   if (left != null) statusLeft.textContent = left;
   if (right != null) statusRight.textContent = right;
 }
+
 function showDropzone(show) {
   dropzone.classList.toggle("hidden", !show);
 }
+
+/* -------------------- overlay load/clear -------------------- */
 
 function clearOverlay() {
   hasOvl = false;
@@ -712,7 +722,6 @@ function clearOverlay() {
     try { URL.revokeObjectURL(ovlObjectUrl); } catch {}
     ovlObjectUrl = null;
   }
-
   setStatus(null, "overlay cleared");
 }
 btnClearOverlay.addEventListener("click", clearOverlay);
@@ -744,11 +753,11 @@ function loadOverlayFile(file) {
 
     ovlVideoEl.pause();
     ovlVideoEl.muted = true;
-    ovlVideoEl.autoplay = true;
     ovlVideoEl.loop = true;
     ovlVideoEl.playsInline = true;
+    ovlVideoEl.setAttribute("playsinline", "");
+    ovlVideoEl.setAttribute("webkit-playsinline", "");
     ovlVideoEl.preload = "auto";
-    ovlVideoEl.controls = false;
 
     const finalize = () => {
       const w = ovlVideoEl.videoWidth || 0;
@@ -764,9 +773,7 @@ function loadOverlayFile(file) {
     ovlVideoEl.onloadeddata = finalize;
     ovlVideoEl.oncanplay = () => {
       finalize();
-      ovlVideoEl.play().catch(() => {
-        setStatus(null, "tap stage to start overlay");
-      });
+      ovlVideoEl.play().catch(() => setStatus(null, "tap canvas to start overlay"));
     };
 
     ovlVideoEl.src = url;
@@ -776,14 +783,10 @@ function loadOverlayFile(file) {
     hasOvl = false;
 
     ovlImgEl.onload = () => {
-      ovlSize = {
-        w: ovlImgEl.naturalWidth || 1,
-        h: ovlImgEl.naturalHeight || 1
-      };
+      ovlSize = { w: ovlImgEl.naturalWidth || 1, h: ovlImgEl.naturalHeight || 1 };
       hasOvl = true;
       setStatus(null, `overlay live (${ovlSize.w}×${ovlSize.h})`);
     };
-
     ovlImgEl.onerror = () => {
       setStatus(null, "overlay image failed");
       hasOvl = false;
@@ -801,6 +804,8 @@ overlayInput.addEventListener("change", (e) => {
   overlayInput.value = "";
 });
 
+/* -------------------- source load/clear -------------------- */
+
 function clearSource() {
   hasSrc = false;
   srcType = "none";
@@ -811,12 +816,13 @@ function clearSource() {
   videoEl.load();
   imgEl.removeAttribute("src");
 
-  clearOverlay();
-
-  if (currentObjectUrl) {
-    try { URL.revokeObjectURL(currentObjectUrl); } catch {}
-    currentObjectUrl = null;
+  if (srcObjectUrl) {
+    try { URL.revokeObjectURL(srcObjectUrl); } catch {}
+    srcObjectUrl = null;
   }
+
+  // also clear overlay to avoid stale blends
+  clearOverlay();
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbFboA);
   gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
@@ -832,13 +838,13 @@ btnClear.addEventListener("click", clearSource);
 function loadFile(file) {
   if (!file) return;
 
-  if (currentObjectUrl) {
-    try { URL.revokeObjectURL(currentObjectUrl); } catch {}
-    currentObjectUrl = null;
+  if (srcObjectUrl) {
+    try { URL.revokeObjectURL(srcObjectUrl); } catch {}
+    srcObjectUrl = null;
   }
 
   const url = URL.createObjectURL(file);
-  currentObjectUrl = url;
+  srcObjectUrl = url;
 
   const isVideo = file.type.startsWith("video/");
   const isImage = file.type.startsWith("image/");
@@ -857,14 +863,11 @@ function loadFile(file) {
 
     videoEl.pause();
     videoEl.muted = true;
-    videoEl.autoplay = true;
     videoEl.loop = true;
     videoEl.playsInline = true;
+    videoEl.setAttribute("playsinline", "");
+    videoEl.setAttribute("webkit-playsinline", "");
     videoEl.preload = "auto";
-    videoEl.controls = false;
-
-    videoEl.removeAttribute("src");
-    videoEl.load();
 
     const finalize = () => {
       const w = videoEl.videoWidth || 0;
@@ -876,26 +879,16 @@ function loadFile(file) {
       }
     };
 
-    videoEl.onerror = () => {
-      const err = videoEl.error;
-      const code = err ? err.code : 0;
-      const msg =
-        code === 4 ? "video not supported (try mp4/h.264 or webm)"
-      : code === 3 ? "decode error (re-encode video)"
-      : "could not load video";
-      setStatus(`${file.name}`, msg);
-      showDropzone(true);
-      hasSrc = false;
-      srcType = "none";
-    };
-
     videoEl.onloadedmetadata = finalize;
     videoEl.onloadeddata = finalize;
     videoEl.oncanplay = () => {
       finalize();
-      videoEl.play().catch(() => {
-        setStatus(`${file.name} (${videoEl.videoWidth}×${videoEl.videoHeight})`, "tap stage to start video");
-      });
+      videoEl.play().catch(() => setStatus(null, "tap canvas to start video"));
+    };
+    videoEl.onerror = () => {
+      setStatus(`${file.name}`, "video failed");
+      hasSrc = false;
+      srcType = "none";
     };
 
     videoEl.src = url;
@@ -904,60 +897,53 @@ function loadFile(file) {
     srcType = "image";
     hasSrc = false;
 
-    imgEl.onerror = () => {
-      setStatus(`${file.name}`, "could not load image");
-      showDropzone(true);
-      hasSrc = false;
-      srcType = "none";
-    };
-
     imgEl.onload = () => {
       srcSize = { w: imgEl.naturalWidth || 1, h: imgEl.naturalHeight || 1 };
       hasSrc = true;
       setStatus(`${file.name} (${srcSize.w}×${srcSize.h})`, "live");
+    };
+    imgEl.onerror = () => {
+      setStatus(`${file.name}`, "image failed");
+      hasSrc = false;
+      srcType = "none";
     };
 
     imgEl.src = url;
   }
 }
 
-/* upload UX */
-dropzone.addEventListener("click", () => fileInput.click());
+/* drag & drop */
+["dragenter","dragover"].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+});
+["dragleave","drop"].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+});
+dropzone.addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  loadFile(f);
+});
+
+/* click-to-upload handled by native file input overlay */
 fileInput.addEventListener("change", (e) => {
   const f = e.target.files && e.target.files[0];
   loadFile(f);
   fileInput.value = "";
 });
 
-/* drag/drop: desktop only */
-if (!isMobile()) {
-  ["dragover","drop"].forEach(evt => window.addEventListener(evt, (e) => e.preventDefault()));
-
-  function handleDrop(e){
-    e.preventDefault();
-    e.stopPropagation();
-    const f = e.dataTransfer?.files?.[0];
-    if (f) loadFile(f);
-  }
-
-  ["dragenter","dragover"].forEach(evt => {
-    stageEl.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
-    dropzone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
-  });
-
-  stageEl.addEventListener("drop", handleDrop);
-  dropzone.addEventListener("drop", handleDrop);
-}
-
-/* autoplay fallback */
-stageEl.addEventListener("click", () => {
+/* iOS gesture: tap canvas to start videos */
+canvas.addEventListener("pointerdown", () => {
   if (srcType === "video" && videoEl.src) videoEl.play().catch(()=>{});
-});
-stageEl.addEventListener("touchstart", () => {
-  if (srcType === "video" && videoEl.src) videoEl.play().catch(()=>{});
-}, {passive:true});
+  if (ovlType === "video" && ovlVideoEl.src) ovlVideoEl.play().catch(()=>{});
+}, { passive:true });
 
-/* -------------------- source -> texture -------------------- */
+/* -------------------- Upload DOM media into GL textures -------------------- */
 
 function updateSourceTexture() {
   if (!hasSrc) return;
@@ -997,27 +983,24 @@ function updateOverlayTexture() {
   } catch (_) {}
 }
 
-
-/* -------------------- render loop -------------------- */
+/* -------------------- Render loop -------------------- */
 
 const t0 = performance.now();
 function uniFloat(loc, val) { gl.uniform1f(loc, val); }
 function uniVec2(loc, x, y) { gl.uniform2f(loc, x, y); }
 function uniVec4(loc, a,b,c,d) { gl.uniform4f(loc, a,b,c,d); }
-
-const get = (id) => {
-  const el = document.getElementById(id);
-  return el ? parseFloat(el.value) : 0;
-};
+const get = (id) => parseFloat(document.getElementById(id)?.value ?? "0");
 
 function render() {
   resize();
 
-  const animated = !!(tglAnimate && tglAnimate.checked);
-  const time = animated ? (performance.now() - t0) / 1000 : 0;
+  const rawTime = (performance.now() - t0) / 1000;
+  const time = (tglAnimate?.checked ?? true) ? rawTime : 0.0;
 
-  if (!tglFreeze.checked) updateSourceTexture();
-  if (!tglFreeze.checked) updateOverlayTexture();
+  if (!tglFreeze.checked) {
+    updateSourceTexture();
+    updateOverlayTexture();
+  }
 
   const w = canvas.width, h = canvas.height;
 
@@ -1032,15 +1015,16 @@ function render() {
 
   uniVec2(U.uRes, w, h);
   uniFloat(U.uTime, time);
-  uniFloat(U.uHasSrc, hasSrc ? 1 : 0) 
+
+  uniFloat(U.uHasSrc, hasSrc ? 1 : 0);
   uniFloat(U.uMirror, tglMirror.checked ? 1 : 0);
   uniFloat(U.uFreeze, tglFreeze.checked ? 1 : 0);
   uniFloat(U.uFitCover, fitMode === "cover" ? 1 : 0);
   uniVec2(U.uSrcSize, srcSize.w, srcSize.h);
+
   uniFloat(U.uHasOvl, hasOvl ? 1 : 0);
   uniVec2(U.uOvlSize, ovlSize.w, ovlSize.h);
   uniFloat(U.uOvlOpacity, get("kOvl"));
-
 
   uniFloat(U.uHue, get("kHue"));
   uniFloat(U.uSat, get("kSat"));
@@ -1084,7 +1068,9 @@ function render() {
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, fbFlip ? fbTexB : fbTexA);
 
+  // display feedback texture as final
   uniFloat(U.uHasSrc, 0);
+  uniFloat(U.uHasOvl, 0);
   uniFloat(U.uFbAmt, 1.0);
   uniFloat(U.uFreeze, 1.0);
 
@@ -1095,7 +1081,7 @@ function render() {
 }
 requestAnimationFrame(render);
 
-/* -------------------- export frame -------------------- */
+/* -------------------- Export frame -------------------- */
 
 btnExportImg.addEventListener("click", () => {
   const png = canvas.toDataURL("image/png");
@@ -1105,164 +1091,114 @@ btnExportImg.addEventListener("click", () => {
   setStatus(null, "exported frame");
 });
 
-/* -------------------- recording (WebM) + MP4 conversion -------------------- */
+/* -------------------- Export webm (toggle record) -------------------- */
 
 let rec = null;
 let recChunks = [];
 let isRec = false;
-let recMode = "webm"; // "webm" | "mp4"
 
-// ffmpeg.wasm lazy loader
-let ffmpegInstance = null;
+btnRec.addEventListener("click", async () => {
+  if (!isRec) {
+    const stream = canvas.captureStream(60);
+    const opts = { mimeType: "video/webm;codecs=vp9", videoBitsPerSecond: 8_000_000 };
 
-async function getFFmpeg(){
-  // Expect global FFmpeg from the UMD script tag in index.html
-  if (!window.FFmpeg || !window.FFmpeg.createFFmpeg) {
-    throw new Error("ffmpeg.wasm not loaded (CDN blocked?)");
-  }
-  if (ffmpegInstance) return ffmpegInstance;
+    try { rec = new MediaRecorder(stream, opts); }
+    catch (_) { rec = new MediaRecorder(stream); }
 
-  const { createFFmpeg, fetchFile } = window.FFmpeg;
-  const ff = createFFmpeg({ log: false });
-
-  setStatus(null, "loading mp4 encoder…");
-  await ff.load();
-
-  ffmpegInstance = { ff, fetchFile };
-  return ffmpegInstance;
-}
-
-function downloadBlob(blob, filename){
-  const url = URL.createObjectURL(blob);
-  downloadLink.href = url;
-  downloadLink.download = filename;
-  downloadLink.click();
-  setTimeout(() => URL.revokeObjectURL(url), 20_000);
-}
-
-function pickBestRecorderMime(){
-  const candidates = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm"
-  ];
-  for (const m of candidates) {
-    if (MediaRecorder.isTypeSupported(m)) return m;
-  }
-  return "";
-}
-
-function startRecording(mode){
-  if (isRec) return;
-
-  recMode = mode;
-  const stream = canvas.captureStream(60);
-
-  const mime = pickBestRecorderMime();
-  const opts = {};
-  if (mime) opts.mimeType = mime;
-  opts.videoBitsPerSecond = 8_000_000;
-
-  try { rec = new MediaRecorder(stream, opts); }
-  catch (_) { rec = new MediaRecorder(stream); }
-
-  recChunks = [];
-  rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) recChunks.push(e.data); };
-
-  rec.onstop = async () => {
-    const webmBlob = new Blob(recChunks, { type: rec.mimeType || "video/webm" });
-
-    // If user wanted WebM, download immediately
-    if (recMode === "webm") {
-      downloadBlob(webmBlob, `videodroid_export_${Date.now()}.webm`);
+    recChunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) recChunks.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(recChunks, { type: rec.mimeType || "video/webm" });
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = `videodroid_export_${Date.now()}.webm`;
+      downloadLink.click();
       setStatus(null, "exported webm");
-      return;
-    }
+    };
 
-    // MP4 conversion
-    try {
-      const { ff, fetchFile } = await getFFmpeg();
-
-      setStatus(null, "converting to mp4…");
-
-      const inName = "input.webm";
-      const outName = "output.mp4";
-
-      // clean up old
-      try { ff.FS("unlink", inName); } catch {}
-      try { ff.FS("unlink", outName); } catch {}
-
-      ff.FS("writeFile", inName, await fetchFile(webmBlob));
-
-      // Try H.264 first (best compatibility). If this build lacks libx264, fallback to mpeg4.
-      try {
-        await ff.run(
-          "-i", inName,
-          "-an",
-          "-c:v", "libx264",
-          "-pix_fmt", "yuv420p",
-          "-movflags", "+faststart",
-          outName
-        );
-      } catch (e1) {
-        // fallback: MPEG-4 Part 2 in MP4 container (more likely available)
-        try {
-          await ff.run(
-            "-i", inName,
-            "-an",
-            "-c:v", "mpeg4",
-            "-q:v", "3",
-            "-movflags", "+faststart",
-            outName
-          );
-        } catch (e2) {
-          throw e2;
-        }
-      }
-
-      const mp4Data = ff.FS("readFile", outName);
-      const mp4Blob = new Blob([mp4Data.buffer], { type: "video/mp4" });
-
-      downloadBlob(mp4Blob, `videodroid_export_${Date.now()}.mp4`);
-      setStatus(null, "exported mp4");
-    } catch (err) {
-      // If MP4 conversion fails, fall back to WebM so user still gets something
-      downloadBlob(webmBlob, `videodroid_export_${Date.now()}.webm`);
-      setStatus(null, "mp4 failed → exported webm");
-      console.error(err);
-    }
-  };
-
-  rec.start();
-  isRec = true;
-
-  if (mode === "webm") {
-    btnRec.textContent = "stop export";
-    btnExportMp4.textContent = "export mp4";
+    rec.start();
+    isRec = true;
+    btnRec.textContent = "stop webm";
     setStatus(null, "recording webm…");
   } else {
-    btnExportMp4.textContent = "stop export";
+    isRec = false;
     btnRec.textContent = "export webm";
-    setStatus(null, "recording (for mp4)…");
+    if (rec && rec.state !== "inactive") rec.stop();
   }
-}
-
-function stopRecording(){
-  if (!isRec) return;
-  isRec = false;
-  if (rec && rec.state !== "inactive") rec.stop();
-  btnRec.textContent = "export webm";
-  btnExportMp4.textContent = "export mp4";
-}
-
-btnRec.addEventListener("click", () => {
-  if (!isRec) startRecording("webm");
-  else stopRecording();
 });
 
-btnExportMp4.addEventListener("click", () => {
-  if (!isRec) startRecording("mp4");
-  else stopRecording();
+/* -------------------- Export mp4 (records then converts) -------------------- */
+
+let mp4Rec = null;
+let mp4Chunks = [];
+let isMp4Rec = false;
+
+async function exportMp4FromWebmBlob(webmBlob) {
+  // requires ffmpeg.js loaded in index.html
+  const FF = window.FFmpeg;
+  if (!FF) {
+    setStatus(null, "ffmpeg not loaded");
+    return;
+  }
+
+  const { createFFmpeg, fetchFile } = FF;
+  const ffmpeg = createFFmpeg({ log: false });
+
+  setStatus(null, "loading ffmpeg…");
+  await ffmpeg.load();
+
+  setStatus(null, "converting to mp4…");
+  ffmpeg.FS("writeFile", "in.webm", await fetchFile(webmBlob));
+
+  // simple transcode: H.264/AAC container
+  await ffmpeg.run(
+    "-i", "in.webm",
+    "-c:v", "libx264",
+    "-pix_fmt", "yuv420p",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-movflags", "+faststart",
+    "out.mp4"
+  );
+
+  const data = ffmpeg.FS("readFile", "out.mp4");
+  const mp4Blob = new Blob([data.buffer], { type: "video/mp4" });
+  const url = URL.createObjectURL(mp4Blob);
+
+  downloadLink.href = url;
+  downloadLink.download = `videodroid_export_${Date.now()}.mp4`;
+  downloadLink.click();
+  setStatus(null, "exported mp4");
+}
+
+btnExportMp4.addEventListener("click", async () => {
+  if (!isMp4Rec) {
+    const stream = canvas.captureStream(60);
+    // record webm first
+    let recorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType:"video/webm;codecs=vp9", videoBitsPerSecond: 8_000_000 });
+    } catch {
+      recorder = new MediaRecorder(stream);
+    }
+    mp4Rec = recorder;
+    mp4Chunks = [];
+
+    mp4Rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) mp4Chunks.push(e.data); };
+    mp4Rec.onstop = async () => {
+      const blob = new Blob(mp4Chunks, { type: mp4Rec.mimeType || "video/webm" });
+      await exportMp4FromWebmBlob(blob);
+    };
+
+    mp4Rec.start();
+    isMp4Rec = true;
+    btnExportMp4.textContent = "stop mp4";
+    setStatus(null, "recording mp4…");
+  } else {
+    isMp4Rec = false;
+    btnExportMp4.textContent = "export mp4";
+    if (mp4Rec && mp4Rec.state !== "inactive") mp4Rec.stop();
+  }
 });
 
 /* init */
