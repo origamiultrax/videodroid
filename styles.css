@@ -63,7 +63,8 @@ body{
   display:flex;
   flex-direction:column;
   gap:10px;
-  min-height: calc(100vh - 90px);
+  /* 100vh breaks on mobile because Safari’s address bar changes height */
+  min-height: auto;
 }
 
 /* dropzone */
@@ -112,12 +113,23 @@ body{
 /* render shell */
 .renderShell{
   position:relative;
-  flex:1;
+  flex: 0 0 auto;
+
+  /* good size on desktop */
+  height: min(70vh, 720px);
+
   border:1px solid var(--line);
   border-radius:14px;
   background:#000;
   overflow:hidden;
   box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset;
+}
+
+/* mobile: stop it from becoming gigantic */
+@media (max-width: 980px){
+  .renderShell{
+    height: 52dvh;   /* dynamic viewport height */
+  }
 }
 
 #glcanvas{
