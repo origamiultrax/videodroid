@@ -968,9 +968,11 @@ function updateSourceTexture() {
   try {
     if (srcType === "video") {
       if (videoEl.readyState >= 2) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
       }
     } else if (srcType === "image") {
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgEl);
     }
   } catch (_) {}
@@ -985,9 +987,11 @@ function updateOverlayTexture() {
   try {
     if (ovlType === "video") {
       if (ovlVideoEl.readyState >= 2) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ovlVideoEl);
       }
     } else if (ovlType === "image") {
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ovlImgEl);
     }
   } catch (_) {}

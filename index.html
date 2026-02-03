@@ -1,12 +1,12 @@
-<!-- index.html (FULL REPLACE) -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Videodroid</title>
   <link rel="stylesheet" href="styles.css"/>
 </head>
+
 <body>
   <header class="topbar">
     <div class="brand">videodroid - by origami ultra</div>
@@ -20,6 +20,8 @@
 
   <main class="layout">
     <section class="stage">
+
+      <!-- Dropzone -->
       <div id="dropzone" class="dropzone">
         <div class="dz-inner">
           <div class="camera">
@@ -28,29 +30,33 @@
               <path d="M12 17a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" stroke-width="1.4"/>
             </svg>
           </div>
+
           <div class="dz-text">
             <div class="dz-title">tap to add</div>
             <div class="dz-sub">image / video</div>
           </div>
-
-          <!-- Mobile-friendly file input -->
-          <input id="fileInput" class="fileInput" type="file" accept="image/*,video/*" playsinline webkit-playsinline />
         </div>
+
+        <!-- IMPORTANT: file input is OUTSIDE dz-inner (mobile-safe) -->
+        <input id="fileInput" class="fileInput" type="file" accept="image/*,video/*" />
       </div>
 
       <div class="renderShell">
         <canvas id="glcanvas"></canvas>
-        <video id="srcVideo" class="hidden" playsinline webkit-playsinline muted loop></video>
-        <img id="srcImage" class="hidden" alt="source"/>
-        <!-- overlay source -->
-<video id="ovlVideo" class="hidden" playsinline webkit-playsinline muted loop></video>
-<img id="ovlImage" class="hidden" alt="overlay"/>
+
+        <!-- IMPORTANT: DO NOT display:none videos/images; use mediaHidden -->
+        <video id="srcVideo" class="mediaHidden" playsinline webkit-playsinline muted loop preload="auto"></video>
+        <img id="srcImage" class="mediaHidden" alt="source"/>
+
+        <video id="ovlVideo" class="mediaHidden" playsinline webkit-playsinline muted loop preload="auto"></video>
+        <img id="ovlImage" class="mediaHidden" alt="overlay"/>
       </div>
 
       <div class="statusbar">
         <div id="statusLeft">no source loaded</div>
         <div id="statusRight">ready</div>
       </div>
+
     </section>
 
     <aside class="panel">
@@ -59,7 +65,7 @@
         <div class="panelHint">mainbow-ish modules • realtime • tweakable</div>
       </div>
 
-      <!-- INPUT -->
+      <!-- input -->
       <div class="module">
         <div class="moduleTitle">input</div>
         <div class="row">
@@ -67,13 +73,13 @@
           <button id="btnFitCover" class="btn small">cover</button>
           <button id="btnClear" class="btn small danger">clear</button>
         </div>
-        <div class="row">
-  <button id="btnOverlay" class="btn small">add overlay</button>
-  <button id="btnClearOverlay" class="btn small danger">clear overlay</button>
 
-  <!-- hidden overlay input (mobile-friendly) -->
-  <input id="overlayInput" class="hidden" type="file" accept="image/*,video/*" playsinline webkit-playsinline />
-</div>
+        <div class="row">
+          <button id="btnOverlay" class="btn small">add overlay</button>
+          <button id="btnClearOverlay" class="btn small danger">clear overlay</button>
+          <input id="overlayInput" class="hidden" type="file" accept="image/*,video/*" />
+        </div>
+
         <div class="row">
           <label class="toggle">
             <input id="tglMirror" type="checkbox"/>
@@ -90,11 +96,10 @@
         </div>
       </div>
 
-      <!-- CORE -->
+      <!-- core -->
       <div class="module">
         <div class="moduleTitle">core (color / phase)</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>hue</label>
             <div class="knobUI">
@@ -130,15 +135,13 @@
             </div>
             <input id="kBri" class="rangeHidden" type="range" min="-0.5" max="0.5" step="0.001" value="0"/>
           </div>
-
         </div>
       </div>
 
-      <!-- FEEDBACK -->
+      <!-- feedback -->
       <div class="module">
         <div class="moduleTitle">analog feedback</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>feedback</label>
             <div class="knobUI">
@@ -174,15 +177,13 @@
             </div>
             <input id="kFbShift" class="rangeHidden" type="range" min="0" max="0.03" step="0.0001" value="0.006"/>
           </div>
-
         </div>
       </div>
 
-      <!-- WARP / SCAN / GLITCH -->
+      <!-- warp/scan/glitch -->
       <div class="module">
         <div class="moduleTitle">warp / scan / glitch</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>warp</label>
             <div class="knobUI">
@@ -218,15 +219,13 @@
             </div>
             <input id="kSym" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.0"/>
           </div>
-
         </div>
       </div>
 
-      <!-- DISTORT STAGES -->
+      <!-- distort -->
       <div class="module">
         <div class="moduleTitle">distort stages</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>distort A</label>
             <div class="knobUI">
@@ -262,15 +261,13 @@
             </div>
             <input id="kBleed" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.15"/>
           </div>
-
         </div>
       </div>
 
-      <!-- EDGE / KEY / SOLAR / POST -->
+      <!-- edge/key -->
       <div class="module">
         <div class="moduleTitle">edge / key / solar / poster</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>edge detect</label>
             <div class="knobUI">
@@ -315,15 +312,13 @@
             </div>
             <input id="kThresh" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.5"/>
           </div>
-
         </div>
       </div>
 
-      <!-- CHROMA PHASE -->
+      <!-- chroma -->
       <div class="module">
         <div class="moduleTitle">chroma phase offsets</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>red phase</label>
             <div class="knobUI">
@@ -359,15 +354,13 @@
             </div>
             <input id="kChRate" class="rangeHidden" type="range" min="0" max="2" step="0.001" value="0.55"/>
           </div>
-
         </div>
       </div>
 
-      <!-- ANALOG DIRT + CRT -->
+      <!-- dirt -->
       <div class="module">
         <div class="moduleTitle">analog dirt</div>
         <div class="knobGrid">
-
           <div class="knob">
             <label>grain</label>
             <div class="knobUI">
@@ -412,22 +405,15 @@
             </div>
             <input id="kCrt" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.35"/>
           </div>
-        <div class="knob">
-  <label>overlay opacity</label>
-  <div class="knobUI">
-    <div class="dial" data-for="kOvl"></div>
-    <div class="val" id="vOvl">0.500</div>
-  </div>
-  <input
-    id="kOvl"
-    class="rangeHidden"
-    type="range"
-    min="0"
-    max="1"
-    step="0.001"
-    value="0.5"
-  />
-</div>
+
+          <div class="knob">
+            <label>overlay opacity</label>
+            <div class="knobUI">
+              <div class="dial" data-for="kOvl"></div>
+              <div class="val" id="vOvl">0.500</div>
+            </div>
+            <input id="kOvl" class="rangeHidden" type="range" min="0" max="1" step="0.001" value="0.5"/>
+          </div>
         </div>
       </div>
 
@@ -440,7 +426,7 @@
     </aside>
   </main>
 
-  <!-- IMPORTANT: ffmpeg must load BEFORE app.js -->
+  <!-- ffmpeg for mp4 export -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
   <script src="app.js"></script>
 </body>
