@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIDEODROID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:         #060a06;
+  --panel:      #0b100b;
+  --panel2:     #0e140e;
+  --border:     #1c2a1c;
+  --border-hi:  #2e4a2e;
+  --accent:     #3aff7a;
+  --accent2:    #00ffcc;
+  --accent-dim: #0d2a15;
+  --text:       #7aeeaa;
+  --text-dim:   #2a5a3a;
+  --led-on:     #00ff66;
+  --led-off:    #020f04;
+  --danger:     #ff4422;
+  --rec:        #ff2244;
+  --header-h:   34px;
+  --panel-w:    210px;
+  --bot-h:      148px;
+  --font-mono:  'Share Tech Mono', 'Courier New', monospace;
+  --font-head:  'Orbitron', 'Share Tech Mono', monospace;
+}
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:var(--font-mono); font-size:11px; }
+
+/* ── SCROLLBAR ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width:4px; background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--border-hi); border-radius:2px; }
+
+/* ── LAYOUT ──────────────────────────────────────────────────────────── */
+#app { display:flex; flex-direction:column; height:100vh; }
+
+/* Header */
+#topbar {
+  height:var(--header-h); min-height:var(--header-h);
+  background:linear-gradient(180deg, #0f1a0f 0%, #080e08 100%);
+  border-bottom:1px solid var(--border-hi);
+  display:flex; align-items:center; padding:0 12px; gap:16px;
+  box-shadow:0 2px 12px rgba(0,255,80,0.06);
+  position:relative; z-index:10;
+}
+.logo {
+  font-family:var(--font-head); font-size:16px; font-weight:900;
+  letter-spacing:6px; color:var(--accent);
+  text-shadow:0 0 16px rgba(58,255,122,0.6), 0 0 40px rgba(58,255,122,0.2);
+  user-select:none;
+}
+.logo-sub { font-size:8px; color:var(--text-dim); letter-spacing:3px; margin-top:2px; }
+.header-divider { width:1px; height:20px; background:var(--border-hi); }
+.status-led { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--text-dim); }
+.status-dot { width:6px; height:6px; border-radius:50%; background:var(--led-on); box-shadow:0 0 6px var(--led-on); animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+#source-hint { font-size:9px; color:var(--text-dim); letter-spacing:1px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Main workspace */
+#workspace {
+  flex:1; display:flex; overflow:hidden;
+}
+
+/* Side panels */
+.side-panel {
+  width:var(--panel-w); min-width:var(--panel-w);
+  overflow-y:auto; overflow-x:hidden;
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  padding:6px 5px;
+  display:flex; flex-direction:column; gap:5px;
+}
+#right-panel {
+  border-right:none;
+  border-left:1px solid var(--border);
+}
+
+/* Center */
+#center {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
+  background:var(--bg);
+}
+#canvas-wrap {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  position:relative; overflow:hidden;
+  background:radial-gradient(ellipse at center, #0a140a 0%, #040804 100%);
+}
+#vd-canvas {
+  max-width:100%; max-height:100%;
+  display:block;
+  box-shadow:0 0 40px rgba(0,255,80,0.08), 0 0 80px rgba(0,0,0,0.8);
+  cursor:crosshair;
+}
+#drop-zone {
+  position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  border:1px dashed var(--border-hi); padding:6px 18px;
+  font-size:9px; color:var(--text-dim); letter-spacing:2px;
+  cursor:pointer; border-radius:2px;
+  background:rgba(6,10,6,0.7); backdrop-filter:blur(4px);
+  transition:all .2s; user-select:none;
+}
+#drop-zone:hover, #drop-zone.drag-over {
+  border-color:var(--accent); color:var(--accent);
+  box-shadow:0 0 12px rgba(58,255,122,0.15);
+}
+.scan-overlay {
+  position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+}
+
+/* Bottom panel */
+#bottom-panel {
+  height:var(--bot-h); min-height:var(--bot-h);
+  background:var(--panel);
+  border-top:1px solid var(--border-hi);
+  display:flex; gap:0; overflow-x:auto; overflow-y:hidden;
+  padding:5px 6px;
+}
+#bottom-panel .bot-section {
+  min-width:120px; flex:1;
+  border-right:1px solid var(--border);
+  padding-right:5px; margin-right:5px;
+}
+#bottom-panel .bot-section:last-child { border-right:none; }
+
+/* ── SECTION ─────────────────────────────────────────────────────────── */
+.section {
+  background:linear-gradient(180deg,#0d140d 0%,#090e09 100%);
+  border:1px solid var(--border);
+  border-top-color:var(--border-hi);
+  border-radius:3px;
+  overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(58,255,122,0.04), 0 1px 4px rgba(0,0,0,0.6);
+}
+.section-header {
+  background:linear-gradient(180deg,#111a11 0%,#0c120c 100%);
+  border-bottom:1px solid var(--border);
+  padding:4px 7px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sec-title {
+  font-family:var(--font-head); font-size:8px; font-weight:700;
+  letter-spacing:2px; color:var(--accent); text-transform:uppercase;
+  text-shadow:0 0 8px rgba(58,255,122,0.4);
+}
+.section-body { padding:6px 5px 8px; }
+
+/* ── KNOBS ───────────────────────────────────────────────────────────── */
+.knob-row { display:flex; flex-wrap:wrap; gap:4px; justify-content:center; margin-bottom:4px; }
+.knob-wrap { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.knob-canvas { cursor:ns-resize; display:block; }
+.knob-val {
+  font-size:9px; color:var(--led-on); text-align:center;
+  min-width:36px;
+  background:var(--led-off); border:1px solid #0a2a12;
+  padding:1px 3px; border-radius:2px;
+  font-family:var(--font-mono);
+  text-shadow:0 0 6px var(--led-on);
+}
+.knob-label {
+  font-size:7.5px; color:var(--text-dim); text-align:center;
+  letter-spacing:1px; text-transform:uppercase; max-width:52px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────────────────────── */
+.vd-btn {
+  font-family:var(--font-mono); font-size:9px; letter-spacing:1px;
+  color:var(--text); background:linear-gradient(180deg,#141e14,#0c120c);
+  border:1px solid var(--border-hi); border-radius:2px;
+  padding:3px 7px; cursor:pointer; text-transform:uppercase;
+  transition:all .15s;
+}
+.vd-btn:hover { border-color:var(--accent); color:var(--accent); box-shadow:0 0 8px rgba(58,255,122,0.15); }
+.vd-btn:active { transform:scale(0.97); }
+.btn-active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.btn-danger { border-color:#3a1a12; color:#ff7755; }
+.btn-danger:hover { border-color:var(--danger); color:var(--danger); box-shadow:0 0 8px rgba(255,68,34,0.2); }
+.btn-rec { border-color:#3a1222; color:#ff6688; }
+.btn-rec:hover { border-color:var(--rec); color:var(--rec); box-shadow:0 0 10px rgba(255,34,68,0.25); }
+.btn-rec-active { background:#1a0610; border-color:var(--rec); color:var(--rec); animation:recpulse 1s infinite; }
+@keyframes recpulse { 0%,100%{box-shadow:0 0 6px rgba(255,34,68,0.4)} 50%{box-shadow:0 0 18px rgba(255,34,68,0.8)} }
+.btn-row { display:flex; flex-wrap:wrap; gap:3px; margin-bottom:5px; }
+
+/* ── CHECKBOXES (LED) ────────────────────────────────────────────────── */
+.cb-row { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:5px; }
+.led-label { display:flex; align-items:center; gap:4px; cursor:pointer; padding:2px 5px; border:1px solid var(--border); border-radius:2px; transition:all .15s; }
+.led-label:hover { border-color:var(--border-hi); }
+.led-cb { display:none; }
+.led-dot { width:7px; height:7px; border-radius:50%; background:var(--led-off); border:1px solid #1a3a22; transition:all .2s; }
+.led-cb:checked ~ .led-dot { background:var(--led-on); box-shadow:0 0 6px var(--led-on); }
+.led-text { font-size:8px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; }
+.led-cb:checked ~ .led-dot ~ .led-text { color:var(--accent); }
+
+/* ── SELECT ──────────────────────────────────────────────────────────── */
+.select-wrap { display:flex; align-items:center; gap:5px; margin-bottom:5px; }
+.select-label { font-size:8px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+.vd-select {
+  font-family:var(--font-mono); font-size:8px; color:var(--text);
+  background:#0c140c; border:1px solid var(--border-hi);
+  border-radius:2px; padding:2px 4px; cursor:pointer;
+  outline:none; flex:1;
+  -webkit-appearance:none; appearance:none;
+}
+.vd-select:focus { border-color:var(--accent); }
+
+/* ── CORNER DECORATIONS ─────────────────────────────────────────────── */
+.section::before, .section::after {
+  content:''; position:absolute; width:6px; height:6px;
+  border-color:var(--accent-dim); border-style:solid;
+}
+.section { position:relative; }
+.section::before { top:0; left:0; border-width:1px 0 0 1px; }
+.section::after  { bottom:0; right:0; border-width:0 1px 1px 0; }
+
+/* ── CORNER RIVETS (decorative) ─────────────────────────────────────── */
+.panel-rivet {
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #3a5a3a, #0e1a0e);
+  border:1px solid #1a2a1a;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+/* ── TOPBAR METER ───────────────────────────────────────────────────── */
+.header-meter {
+  display:flex; gap:2px; align-items:flex-end; height:16px;
+}
+.meter-bar {
+  width:3px; background:var(--accent-dim);
+  border-radius:1px; min-height:2px;
+  transition:height .05s;
+}
+
+/* ── GRID LINES CANVAS FRAME ─────────────────────────────────────────── */
+#canvas-frame {
+  position:relative;
+  border:1px solid var(--border);
+  border-radius:2px;
+  overflow:hidden;
+  box-shadow:0 0 0 1px rgba(58,255,122,0.04) inset,
+             0 0 60px rgba(0,0,0,0.9);
+}
+#canvas-frame::before {
+  content:'';
+  position:absolute; inset:0; z-index:1; pointer-events:none;
+  border:1px solid var(--border-hi);
+  border-radius:2px;
+}
+#canvas-frame::after {
+  content:'';
+  position:absolute;
+  top:6px; left:6px; right:6px; bottom:6px;
+  pointer-events:none; z-index:1;
+  border:1px solid transparent;
+  background:
+    linear-gradient(var(--accent),var(--accent)) top left / 12px 1px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) top left / 1px 12px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) top right / 12px 1px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) top right / 1px 12px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) bottom left / 12px 1px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) bottom left / 1px 12px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) bottom right / 12px 1px no-repeat,
+    linear-gradient(var(--accent),var(--accent)) bottom right / 1px 12px no-repeat;
+  opacity:.4;
+}
+
+/* ── TITLE CORNER ORNAMENT ───────────────────────────────────────────── */
+.corner-ornament {
+  display:flex; gap:3px; align-items:center;
+}
+.corner-ornament span {
+  display:inline-block; width:4px; height:4px; border-radius:50%;
+  background:var(--accent); opacity:.5;
+}
+.corner-ornament span:nth-child(2) { opacity:.3; }
+.corner-ornament span:nth-child(3) { opacity:.15; }
+
+/* ── HIDDEN INPUTS ─────────────────────────────────────────────────── */
+#file-input, #overlay-input { display:none; }
+
+/* ── BOTTOM SECTION ─────────────────────────────────────────────────── */
+#bottom-panel .section { height:100%; display:flex; flex-direction:column; }
+#bottom-panel .section-body { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:center; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div>
+      <div class="logo">VIDEODROID</div>
+      <div class="logo-sub">VISUAL SYNTHESIS SYSTEM</div>
+    </div>
+    <div class="header-divider"></div>
+    <div class="status-led">
+      <div class="status-dot"></div>
+      <span>LIVE</span>
+    </div>
+    <div class="header-divider"></div>
+    <div class="corner-ornament"><span></span><span></span><span></span></div>
+    <div class="header-right">
+      <span id="source-hint">◈ DROP IMAGE / VIDEO</span>
+      <div class="header-meter" id="header-meter">
+        <div class="meter-bar" style="height:4px"></div>
+        <div class="meter-bar" style="height:8px"></div>
+        <div class="meter-bar" style="height:12px"></div>
+        <div class="meter-bar" style="height:10px"></div>
+        <div class="meter-bar" style="height:6px"></div>
+        <div class="meter-bar" style="height:14px"></div>
+        <div class="meter-bar" style="height:8px"></div>
+        <div class="meter-bar" style="height:5px"></div>
+      </div>
+    </div>
+  </header>
+
+  <div id="workspace">
+    <aside class="side-panel" id="left-panel"></aside>
+    <section id="center">
+      <div id="canvas-wrap">
+        <div id="canvas-frame">
+          <canvas id="vd-canvas"></canvas>
+          <div class="scan-overlay"></div>
+        </div>
+        <div id="drop-zone">◈ DROP IMAGE / VIDEO HERE — OR CLICK TO BROWSE</div>
+      </div>
+      <div id="bottom-panel"></div>
+    </section>
+    <aside class="side-panel" id="right-panel"></aside>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*,video/*">
+<input type="file" id="overlay-input" accept="image/*">
+
+<script>
+
+'use strict';
+
+// ─── VERTEX SHADER (shared) ───────────────────────────────────────────────────
+const VS = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main(){
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+// ─── PASS 1: INPUT + CORE COLOR ───────────────────────────────────────────────
+const FS_CORE = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_src;
+uniform float u_has_src;
+uniform float u_hue;
+uniform float u_sat;
+uniform float u_con;
+uniform float u_bri;
+uniform float u_mirror;
+uniform float u_time;
+out vec4 o;
+
+vec3 rgb2hsv(vec3 c){
+  vec4 K=vec4(0.,-1./3.,2./3.,-1.);
+  vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+  vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
+  float d=q.x-min(q.w,q.y);
+  return vec3(abs(q.z+(q.w-q.y)/(6.*d+1e-10)),d/(q.x+1e-10),q.x);
+}
+vec3 hsv2rgb(vec3 c){
+  vec4 K=vec4(1.,2./3.,1./3.,3.);
+  vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);
+  return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);
+}
+
+// 80s plasma default
+vec3 plasma(vec2 uv, float t){
+  vec2 p=uv*2.-1.;
+  float v=sin(p.x*3.+t*.7)+sin(p.y*3.+t*.5)
+         +sin((p.x+p.y)*2.+t*.9)
+         +sin(length(p)*5.-t*1.2);
+  return hsv2rgb(vec3(fract(v*.25+t*.05),1.,1.));
+}
+
+void main(){
+  vec2 uv=v_uv;
+  int m=int(u_mirror+0.5);
+  if(m==1) uv.x = uv.x<.5 ? uv.x*2. : (1.-uv.x)*2.;
+  else if(m==2) uv.y = uv.y<.5 ? uv.y*2. : (1.-uv.y)*2.;
+  else if(m==3){ uv.x=uv.x<.5?uv.x*2.:(1.-uv.x)*2.; uv.y=uv.y<.5?uv.y*2.:(1.-uv.y)*2.; }
+
+  vec4 c;
+  if(u_has_src>0.5){
+    c = texture(u_src, clamp(uv,0.,1.));
+  } else {
+    c = vec4(plasma(uv, u_time*0.001), 1.);
+  }
+
+  vec3 hsv=rgb2hsv(c.rgb);
+  hsv.x=fract(hsv.x+u_hue);
+  hsv.y=clamp(hsv.y*u_sat,0.,1.);
+  vec3 rgb=hsv2rgb(hsv);
+  rgb=(rgb-.5)*max(u_con,0.)+.5+u_bri;
+  o=vec4(clamp(rgb,0.,1.),1.);
+}`;
+
+// ─── PASS 2: ANALOG FEEDBACK ──────────────────────────────────────────────────
+const FS_FEEDBACK = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_src;
+uniform sampler2D u_fb;
+uniform float u_amt;
+uniform float u_rotate;
+uniform float u_zoom;
+uniform float u_shiftX;
+uniform float u_shiftY;
+out vec4 o;
+void main(){
+  vec2 fuv=v_uv-.5;
+  float c=cos(u_rotate),s=sin(u_rotate);
+  fuv=vec2(fuv.x*c-fuv.y*s, fuv.x*s+fuv.y*c);
+  fuv/=max(u_zoom,0.01);
+  fuv+=vec2(u_shiftX,u_shiftY)+.5;
+  vec4 fb=texture(u_fb, clamp(fuv,0.,1.));
+  vec4 src=texture(u_src, v_uv);
+  o=mix(src, fb, clamp(u_amt,0.,.99));
+}`;
+
+// ─── PASS 3: ALL EFFECTS ──────────────────────────────────────────────────────
+const FS_EFFECTS = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform sampler2D u_prev1;
+uniform sampler2D u_prev2;
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_warp;
+uniform float u_scanlines;
+uniform float u_glitch;
+uniform float u_symmetry;
+uniform float u_distA;
+uniform float u_distB;
+uniform float u_crush;
+uniform float u_bleed;
+uniform float u_edge;
+uniform float u_lumaKey;
+uniform float u_solarize;
+uniform float u_posterize;
+uniform float u_threshold;
+uniform float u_rPhase;
+uniform float u_gPhase;
+uniform float u_bPhase;
+uniform float u_phaseRate;
+uniform float u_perlin;
+uniform float u_perlinScale;
+uniform float u_perlinSpeed;
+uniform float u_flow;
+uniform float u_flowScale;
+uniform float u_flowSpeed;
+uniform float u_dither;
+uniform float u_ditherLevels;
+uniform float u_temporal;
+out vec4 o;
+
+float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float h11(float n){return fract(sin(n)*43758.5453);}
+float noise(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  f=f*f*(3.-2.*f);
+  return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);
+}
+float fbm(vec2 p){
+  float v=0.,a=.5;
+  for(int i=0;i<5;i++){v+=a*noise(p);p*=2.;a*=.5;}
+  return v;
+}
+float getBayer(vec2 px){
+  int x=int(mod(px.x,4.)),y=int(mod(px.y,4.));
+  const float b[16]=float[16](
+    0./16.,8./16.,2./16.,10./16.,
+    12./16.,4./16.,14./16.,6./16.,
+    3./16.,11./16.,1./16.,9./16.,
+    15./16.,7./16.,13./16.,5./16.);
+  return b[y*4+x];
+}
+vec4 smp(vec2 uv){return texture(u_tex,clamp(uv,0.,1.));}
+
+void main(){
+  vec2 uv=v_uv;
+  vec2 px=1./u_res;
+  int sym=int(u_symmetry+.5);
+
+  // Symmetry
+  if(sym==1){ uv.x=uv.x<.5?uv.x:.5-(uv.x-.5); uv.x=clamp(uv.x*2.,0.,1.); }
+  else if(sym==2){ uv=1.-abs(uv*2.-1.); }
+  else if(sym==3){
+    vec2 d=uv-.5; float a=atan(d.y,d.x); float r=length(d);
+    float seg=3.14159/4.; a=mod(a,seg*2.)-seg; if(a<0.) a=-a;
+    uv=vec2(cos(a),sin(a))*r+.5;
+  }
+
+  // Warp
+  if(u_warp>0.){
+    float t=u_time*.0008;
+    uv.x+=sin(uv.y*12.566+t*.9+1.3)*u_warp*.045;
+    uv.y+=cos(uv.x*9.42+t*.7)*u_warp*.035;
+    uv.x+=sin(uv.y*6.+t*1.1)*u_warp*.02;
+  }
+
+  // Distort A: lens warp + ripple
+  if(u_distA>0.){
+    vec2 d=uv-.5; float r=length(d);
+    float twist=sin(r*8.-u_time*.002)*u_distA*.5;
+    float cs=cos(twist),sn=sin(twist);
+    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs);
+    d*=1.+u_distA*r*.6;
+    uv=d+.5;
+  }
+
+  // Distort B: swirl
+  if(u_distB>0.){
+    vec2 d=uv-.5; float r=length(d);
+    float angle=u_distB*2.5*(1.-r*1.2);
+    float cs=cos(angle),sn=sin(angle);
+    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs);
+    uv=d+.5;
+  }
+
+  // Flow field
+  if(u_flow>0.){
+    float t=u_time*.0008*u_flowSpeed;
+    float sc=u_flowScale*2.;
+    float fx=fbm(uv*sc+vec2(t,0.))-.5;
+    float fy=fbm(uv*sc+vec2(0.,t)+vec2(1.7,2.3))-.5;
+    uv+=vec2(fx,fy)*u_flow*.1;
+  }
+
+  // Glitch
+  vec2 guv=uv;
+  if(u_glitch>0.){
+    float t=floor(u_time*.025);
+    // Line glitch
+    float line=floor(uv.y*120.);
+    float rnd=h21(vec2(line,t));
+    if(rnd>1.-u_glitch*.65) guv.x+=(h21(vec2(line,t+1.))-.5)*u_glitch*.18;
+    // Block glitch
+    float bl=floor(uv.y*12.);
+    float brnd=h21(vec2(bl,t*.7+5.));
+    if(brnd>1.-u_glitch*.35) guv.x+=(h21(vec2(bl,t+7.))-.5)*u_glitch*.35;
+    // Vertical slice tear
+    if(h11(floor(u_time*.007))>1.-u_glitch*.15){
+      float sx=floor(uv.x*8.);
+      guv.y+=h21(vec2(sx,t*.3))*.04*u_glitch;
+    }
+  }
+
+  vec4 col=smp(guv);
+
+  // Bleed
+  if(u_bleed>0.){
+    float amt=u_bleed*.03;
+    vec4 bl=vec4(0.);
+    for(int i=1;i<=5;i++) bl+=smp(guv-vec2(float(i)*amt,0.));
+    bl/=5.; col.r=mix(col.r,bl.r,u_bleed*.7);
+    vec4 bv=vec4(0.);
+    for(int i=1;i<=3;i++) bv+=smp(guv+vec2(0.,float(i)*amt*.6));
+    bv/=3.; col.g=mix(col.g,bv.g,u_bleed*.35);
+  }
+
+  // Crush
+  if(u_crush>0.){
+    float lv=mix(256.,2.,u_crush);
+    col.rgb=floor(col.rgb*lv+.5)/lv;
+  }
+
+  // Scanlines
+  if(u_scanlines>0.){
+    float sl=mod(gl_FragCoord.y,3.);
+    if(sl<1.) col.rgb*=1.-u_scanlines*.88;
+    else if(sl<2.) col.rgb*=1.-u_scanlines*.25;
+  }
+
+  // Chroma phase offset
+  if(abs(u_rPhase)+abs(u_gPhase)+abs(u_bPhase)>0.001){
+    float t=u_time*.001*u_phaseRate;
+    float rp=u_rPhase*.07, gp=u_gPhase*.07, bp=u_bPhase*.07;
+    col.r=smp(guv+vec2(rp*cos(t),     rp*sin(t)    )).r;
+    col.g=smp(guv+vec2(gp*cos(t+2.09),gp*sin(t+2.09))).g;
+    col.b=smp(guv+vec2(bp*cos(t+4.19),bp*sin(t+4.19))).b;
+  }
+
+  // Edge detect (Sobel)
+  if(u_edge>0.){
+    vec3 s00=smp(guv+px*vec2(-1,-1)).rgb, s10=smp(guv+px*vec2(0,-1)).rgb, s20=smp(guv+px*vec2(1,-1)).rgb;
+    vec3 s01=smp(guv+px*vec2(-1, 0)).rgb,                                   s21=smp(guv+px*vec2(1, 0)).rgb;
+    vec3 s02=smp(guv+px*vec2(-1, 1)).rgb, s12=smp(guv+px*vec2(0, 1)).rgb, s22=smp(guv+px*vec2(1, 1)).rgb;
+    vec3 gx=-s00+s20-2.*s01+2.*s21-s02+s22;
+    vec3 gy=-s00-2.*s10-s20+s02+2.*s12+s22;
+    vec3 edge=sqrt(gx*gx+gy*gy);
+    col.rgb=mix(col.rgb, edge, u_edge);
+  }
+
+  // Luma key
+  if(u_lumaKey>0.){
+    float luma=dot(col.rgb,vec3(.299,.587,.114));
+    col.rgb*=smoothstep(0.,u_lumaKey,luma);
+  }
+
+  // Solarize
+  if(u_solarize>0.){
+    float luma=dot(col.rgb,vec3(.299,.587,.114));
+    vec3 inv=1.-col.rgb;
+    float mask=step(u_solarize*.7, luma);
+    col.rgb=mix(col.rgb,inv,mask*u_solarize);
+  }
+
+  // Posterize
+  if(u_posterize>0.){
+    float lv=mix(64.,2.,u_posterize);
+    col.rgb=floor(col.rgb*lv+.5)/lv;
+  }
+
+  // Threshold
+  if(u_threshold>0.){
+    float luma=dot(col.rgb,vec3(.299,.587,.114));
+    col.rgb=mix(col.rgb,vec3(step(u_threshold*.5,luma)),u_threshold);
+  }
+
+  // Perlin noise
+  if(u_perlin>0.){
+    float t=u_time*.0006*u_perlinSpeed;
+    float sc=u_perlinScale*4.;
+    vec3 pn=vec3(fbm(uv*sc+t+.0),fbm(uv*sc+t+3.7),fbm(uv*sc+t+7.3));
+    pn=pn*2.-1.;
+    col.rgb=mix(col.rgb, abs(pn), u_perlin*.85);
+    col.rgb+=pn*u_perlin*.15;
+  }
+
+  // Dithering
+  if(u_dither>0.){
+    float thr=getBayer(gl_FragCoord.xy);
+    float lv=max(u_ditherLevels,2.)-1.;
+    vec3 dit=clamp(floor(col.rgb*lv+thr)/lv,0.,1.);
+    col.rgb=mix(col.rgb,dit,u_dither);
+  }
+
+  // Temporal error
+  if(u_temporal>0.){
+    float t=floor(u_time*.018);
+    float sel=h11(t);
+    float line=floor(uv.y*u_res.y);
+    float off=(h21(vec2(line,t))-.5)*u_temporal*.05;
+    vec2 tuv=clamp(uv+vec2(off,0.),0.,1.);
+    vec4 past=sel<.5?texture(u_prev1,tuv):texture(u_prev2,tuv);
+    col=mix(col,past,u_temporal*.55);
+    if(h21(vec2(line,t+.5))>1.-u_temporal*.18) col=past;
+  }
+
+  o=vec4(clamp(col.rgb,0.,1.),1.);
+}`;
+
+// ─── PASS 4: ANALOG DIRT (final) ─────────────────────────────────────────────
+const FS_DIRT = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_tex;
+uniform sampler2D u_overlay;
+uniform float u_has_overlay;
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_grain;
+uniform float u_speckle;
+uniform float u_vignette;
+uniform float u_chromaNoise;
+uniform float u_crt;
+uniform float u_overlayOpacity;
+out vec4 o;
+float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+
+void main(){
+  vec2 uv=v_uv;
+
+  // CRT barrel distortion
+  if(u_crt>0.){
+    vec2 d=uv-.5; float r2=dot(d,d);
+    d*=1.+u_crt*r2*.65;
+    uv=d+.5;
+    if(uv.x<0.||uv.x>1.||uv.y<0.||uv.y>1.){ o=vec4(0.,0.,0.,1.); return; }
+  }
+
+  vec4 col=texture(u_tex,uv);
+  vec2 px=1./u_res;
+
+  // CRT phosphor + scanline
+  if(u_crt>0.){
+    float sl=mod(gl_FragCoord.y,2.);
+    col.rgb*=.82+sl*.18;
+    col.rgb+=texture(u_tex,uv+vec2(px.x,0.)).rgb*.08*u_crt;
+    col.rgb+=texture(u_tex,uv-vec2(px.x,0.)).rgb*.08*u_crt;
+    col.g+=u_crt*.05;
+    col.rgb*=1.+u_crt*.05;
+  }
+
+  // Chroma noise
+  if(u_chromaNoise>0.){
+    float t=floor(u_time*.06);
+    col.r+=(h21(uv*220.+t+0.)-.5)*u_chromaNoise*.3;
+    col.g+=(h21(uv*220.+t+100.)-.5)*u_chromaNoise*.22;
+    col.b+=(h21(uv*220.+t+200.)-.5)*u_chromaNoise*.35;
+  }
+
+  // Film grain
+  if(u_grain>0.){
+    float t=u_time*.00041;
+    col.rgb+=(h21(uv*900.+t)-.5)*u_grain*.38;
+  }
+
+  // Speckle
+  if(u_speckle>0.){
+    float t=floor(u_time*.035);
+    float s=h21(floor(uv*700.)+t);
+    float thr=u_speckle*.025;
+    if(s<thr) col.rgb=vec3(1.);
+    else if(s<thr*2.) col.rgb=vec3(0.);
+  }
+
+  // Vignette
+  if(u_vignette>0.){
+    vec2 d=v_uv-.5;
+    float vig=1.-smoothstep(.25,.85,length(d)*u_vignette*2.4);
+    col.rgb*=vig;
+  }
+
+  // Overlay
+  if(u_has_overlay>0.5&&u_overlayOpacity>0.){
+    vec4 ov=texture(u_overlay,v_uv);
+    col.rgb=mix(col.rgb,ov.rgb,u_overlayOpacity*ov.a);
+  }
+
+  o=vec4(clamp(col.rgb,0.,1.),1.);
+}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ENGINE CLASS
+// ─────────────────────────────────────────────────────────────────────────────
+class VideodroidEngine {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.W = 1280; this.H = 720;
+    canvas.width = this.W; canvas.height = this.H;
+    this.time = 0;
+    this.running = false;
+    this.sourceEl = null;
+    this.frozen = false;
+    this.mediaRecorder = null;
+    this.recordChunks = [];
+    this.gl = null;
+    this.prog = {};
+    this.fbos = [];
+    this.feedbackFBO = null;
+    this.prev1FBO = null;
+    this.prev2FBO = null;
+    this.sourceTex = null;
+    this.overlayTex = null;
+    this.quadVAO = null;
+    this._prevUpdateTime = 0;
+
+    this.p = {
+      hue:0, sat:1, con:1, bri:0, mirror:0,
+      feedback:0, fbRotate:0, fbZoom:0, fbShiftX:0, fbShiftY:0,
+      warp:0, scanlines:0, glitch:0, symmetry:0,
+      distA:0, distB:0, crush:0, bleed:0,
+      edge:0, lumaKey:0, solarize:0, posterize:0, threshold:0,
+      rPhase:0, gPhase:0, bPhase:0, phaseRate:1,
+      perlin:0, perlinScale:1, perlinSpeed:1,
+      flow:0, flowScale:1, flowSpeed:1,
+      dither:0, ditherLevels:4,
+      temporal:0,
+      grain:0, speckle:0, vignette:0, chromaNoise:0, crt:0, overlayOpacity:0,
+      animate:true, freeze:false,
+    };
+
+    this._init();
+  }
+
+  _init() {
+    const gl = this.canvas.getContext('webgl2', { antialias:false, preserveDrawingBuffer:true, alpha:false });
+    if (!gl) { alert('WebGL2 required'); return; }
+    this.gl = gl;
+    this.prog.core     = this._mkProg(VS, FS_CORE);
+    this.prog.feedback = this._mkProg(VS, FS_FEEDBACK);
+    this.prog.effects  = this._mkProg(VS, FS_EFFECTS);
+    this.prog.dirt     = this._mkProg(VS, FS_DIRT);
+    this._initGeometry();
+    for (let i = 0; i < 5; i++) this.fbos.push(this._mkFBO());
+    this.feedbackFBO = this._mkFBO();
+    this.prev1FBO    = this._mkFBO();
+    this.prev2FBO    = this._mkFBO();
+    this.sourceTex   = this._mkBlankTex(1, 1, [0,0,0,255]);
+    this.overlayTex  = this._mkBlankTex(1, 1, [0,0,0,0]);
+    this.running = true;
+    requestAnimationFrame(t => this._loop(t));
+  }
+
+  _initGeometry() {
+    const gl = this.gl;
+    const verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+    this.quadVAO = gl.createVertexArray();
+    gl.bindVertexArray(this.quadVAO);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+    for (const pg of Object.values(this.prog)) {
+      const loc = gl.getAttribLocation(pg, 'a_pos');
+      if (loc >= 0) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0); }
+    }
+  }
+
+  _mkFBO() {
+    const gl = this.gl;
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.W, this.H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { fbo, tex };
+  }
+
+  _mkBlankTex(w, h, rgba) {
+    const gl = this.gl;
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  }
+
+  _mkProg(vs, fs) {
+    const gl = this.gl;
+    const mkS = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s), src);
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, mkS(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, mkS(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+    return p;
+  }
+
+  _bindTex(unit, tex) {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+  }
+
+  _draw(prog, target, uniforms) {
+    const gl = this.gl;
+    gl.useProgram(prog);
+    gl.bindVertexArray(this.quadVAO);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
+    gl.viewport(0, 0, this.W, this.H);
+    for (const [k, v] of Object.entries(uniforms)) {
+      const loc = gl.getUniformLocation(prog, k);
+      if (loc === null) continue;
+      if (Array.isArray(v) && v.length === 2) gl.uniform2f(loc, v[0], v[1]);
+      else gl.uniform1f(loc, v);
+    }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  _blit(src, dst) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src.fbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst.fbo);
+    gl.blitFramebuffer(0,0,this.W,this.H,0,0,this.W,this.H,gl.COLOR_BUFFER_BIT,gl.LINEAR);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  _loop(ts) {
+    if (!this.running) return;
+    requestAnimationFrame(t => this._loop(t));
+    if (this.p.animate && !this.frozen) this.time = ts;
+
+    // Update video texture
+    if (this.sourceEl && this.sourceEl.tagName === 'VIDEO' && !this.frozen) {
+      if (!this.sourceEl.paused && this.sourceEl.readyState >= 2) {
+        const gl = this.gl;
+        gl.bindTexture(gl.TEXTURE_2D, this.sourceTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceEl);
+      }
+    }
+
+    const p = this.p, t = this.time;
+
+    // Pass 1: Core
+    this._bindTex(0, this.sourceTex);
+    this._draw(this.prog.core, this.fbos[0], {
+      u_src:0, u_has_src:this.sourceEl?1:0,
+      u_hue:p.hue, u_sat:p.sat, u_con:p.con, u_bri:p.bri,
+      u_mirror:p.mirror, u_time:t,
+    });
+
+    // Pass 2: Feedback
+    this._bindTex(0, this.fbos[0].tex);
+    this._bindTex(1, this.feedbackFBO.tex);
+    this._draw(this.prog.feedback, this.fbos[1], {
+      u_src:0, u_fb:1,
+      u_amt:p.feedback,
+      u_rotate:p.fbRotate * 0.08,
+      u_zoom:1.0 + p.fbZoom * 0.4,
+      u_shiftX:p.fbShiftX * 0.025,
+      u_shiftY:p.fbShiftY * 0.025,
+    });
+
+    // Pass 3: Effects
+    this._bindTex(0, this.fbos[1].tex);
+    this._bindTex(1, this.prev1FBO.tex);
+    this._bindTex(2, this.prev2FBO.tex);
+    this._draw(this.prog.effects, this.fbos[2], {
+      u_tex:0, u_prev1:1, u_prev2:2,
+      u_res:[this.W, this.H], u_time:t,
+      u_warp:p.warp, u_scanlines:p.scanlines, u_glitch:p.glitch, u_symmetry:p.symmetry,
+      u_distA:p.distA, u_distB:p.distB, u_crush:p.crush, u_bleed:p.bleed,
+      u_edge:p.edge, u_lumaKey:p.lumaKey, u_solarize:p.solarize,
+      u_posterize:p.posterize, u_threshold:p.threshold,
+      u_rPhase:p.rPhase, u_gPhase:p.gPhase, u_bPhase:p.bPhase, u_phaseRate:p.phaseRate,
+      u_perlin:p.perlin, u_perlinScale:p.perlinScale, u_perlinSpeed:p.perlinSpeed,
+      u_flow:p.flow, u_flowScale:p.flowScale, u_flowSpeed:p.flowSpeed,
+      u_dither:p.dither, u_ditherLevels:p.ditherLevels,
+      u_temporal:p.temporal,
+    });
+
+    // Pass 4: Dirt → canvas
+    this._bindTex(0, this.fbos[2].tex);
+    this._bindTex(1, this.overlayTex);
+    this._draw(this.prog.dirt, null, {
+      u_tex:0, u_overlay:1, u_has_overlay:this.overlayTex?1:0,
+      u_res:[this.W,this.H], u_time:t,
+      u_grain:p.grain, u_speckle:p.speckle, u_vignette:p.vignette,
+      u_chromaNoise:p.chromaNoise, u_crt:p.crt, u_overlayOpacity:p.overlayOpacity,
+    });
+
+    // Pass 4 also → FBO for feedback
+    this._bindTex(0, this.fbos[2].tex);
+    this._bindTex(1, this.overlayTex);
+    this._draw(this.prog.dirt, this.fbos[3], {
+      u_tex:0, u_overlay:1, u_has_overlay:this.overlayTex?1:0,
+      u_res:[this.W,this.H], u_time:t,
+      u_grain:p.grain, u_speckle:p.speckle, u_vignette:p.vignette,
+      u_chromaNoise:p.chromaNoise, u_crt:p.crt, u_overlayOpacity:p.overlayOpacity,
+    });
+
+    // Update feedback + temporal buffers
+    this._blit(this.fbos[3], this.feedbackFBO);
+    if (ts - this._prevUpdateTime > 80) {
+      this._blit(this.prev1FBO, this.prev2FBO);
+      this._blit(this.fbos[3], this.prev1FBO);
+      this._prevUpdateTime = ts;
+    }
+
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+  }
+
+  setSource(el) {
+    this.sourceEl = el;
+    if (el.tagName === 'IMG') {
+      const gl = this.gl;
+      gl.bindTexture(gl.TEXTURE_2D, this.sourceTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el);
+    }
+  }
+
+  setOverlay(el) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.overlayTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, el);
+  }
+
+  clearSource() { this.sourceEl = null; this.sourceTex = this._mkBlankTex(1,1,[0,0,0,255]); }
+  clearOverlay() { this.overlayTex = this._mkBlankTex(1,1,[0,0,0,0]); }
+
+  toggleFreeze() { this.frozen = !this.frozen; return this.frozen; }
+
+  downloadFrame() {
+    const a = document.createElement('a');
+    a.download = `videodroid-${Date.now()}.png`;
+    a.href = this.canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  startRecording() {
+    const stream = this.canvas.captureStream(30);
+    this.recordChunks = [];
+    let opts;
+    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) opts = { mimeType:'video/webm;codecs=vp9' };
+    else if (MediaRecorder.isTypeSupported('video/webm')) opts = { mimeType:'video/webm' };
+    else opts = {};
+    this.mediaRecorder = new MediaRecorder(stream, opts);
+    this.mediaRecorder.ondataavailable = e => { if (e.data.size>0) this.recordChunks.push(e.data); };
+    this.mediaRecorder.onstop = () => {
+      const blob = new Blob(this.recordChunks, { type: this.mediaRecorder.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = `videodroid-${Date.now()}.webm`;
+      a.href = url; a.click();
+      URL.revokeObjectURL(url);
+    };
+    this.mediaRecorder.start(100);
+  }
+
+  stopRecording() {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') this.mediaRecorder.stop();
+  }
+
+  isRecording() {
+    return !!(this.mediaRecorder && this.mediaRecorder.state === 'recording');
+  }
+}
+
+
+</script>
+<script>
+
+'use strict';
+
+// ─── KNOB COMPONENT ──────────────────────────────────────────────────────────
+class Knob {
+  constructor(container, opts) {
+    this.opts = Object.assign({ min:0, max:1, value:0, label:'', onChange:null, size:52 }, opts);
+    this.value = this.opts.value;
+    this._dragging = false;
+    this._startY = 0;
+    this._startVal = 0;
+    this._build(container);
+  }
+
+  _build(container) {
+    const sz = this.opts.size;
+    this.wrap = document.createElement('div');
+    this.wrap.className = 'knob-wrap';
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = sz; this.canvas.height = sz;
+    this.canvas.className = 'knob-canvas';
+    this.canvas.title = this.opts.label;
+
+    this.valEl = document.createElement('div');
+    this.valEl.className = 'knob-val';
+
+    this.labelEl = document.createElement('div');
+    this.labelEl.className = 'knob-label';
+    this.labelEl.textContent = this.opts.label;
+
+    this.wrap.appendChild(this.canvas);
+    this.wrap.appendChild(this.valEl);
+    this.wrap.appendChild(this.labelEl);
+    container.appendChild(this.wrap);
+
+    this._draw();
+    this._bindEvents();
+  }
+
+  _draw() {
+    const c = this.canvas, ctx = c.getContext('2d');
+    const sz = c.width, cx = sz/2, cy = sz/2, r = sz/2 - 4;
+    ctx.clearRect(0,0,sz,sz);
+
+    // Outer ring glow
+    const t = (this.value - this.opts.min) / (this.opts.max - this.opts.min);
+    const startAngle = Math.PI * 0.75;
+    const endAngle = startAngle + Math.PI * 1.5 * t;
+
+    // Background arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r-2, startAngle, startAngle + Math.PI*1.5);
+    ctx.strokeStyle = '#0d1a0d';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Value arc
+    if (t > 0) {
+      const grd = ctx.createLinearGradient(0,0,sz,0);
+      grd.addColorStop(0, '#1aff44');
+      grd.addColorStop(1, '#00ffcc');
+      ctx.beginPath();
+      ctx.arc(cx, cy, r-2, startAngle, endAngle);
+      ctx.strokeStyle = grd;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Knob body
+    const bodyGrd = ctx.createRadialGradient(cx-r*.2, cy-r*.2, r*.1, cx, cy, r*.85);
+    bodyGrd.addColorStop(0, '#3a4a3a');
+    bodyGrd.addColorStop(0.4, '#1e2a1e');
+    bodyGrd.addColorStop(1, '#0a0f0a');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r-5, 0, Math.PI*2);
+    ctx.fillStyle = bodyGrd;
+    ctx.fill();
+    ctx.strokeStyle = '#2a3f2a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.beginPath();
+    ctx.arc(cx-r*.15, cy-r*.15, r*.3, 0, Math.PI*2);
+    const hiGrd = ctx.createRadialGradient(cx-r*.15,cy-r*.2,0,cx-r*.15,cy-r*.15,r*.3);
+    hiGrd.addColorStop(0, 'rgba(120,200,120,0.15)');
+    hiGrd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hiGrd;
+    ctx.fill();
+
+    // Indicator line
+    const angle = startAngle + Math.PI*1.5*t;
+    const ix = cx + Math.cos(angle)*(r-8);
+    const iy = cy + Math.sin(angle)*(r-8);
+    const ix2 = cx + Math.cos(angle)*(r*.25);
+    const iy2 = cy + Math.sin(angle)*(r*.25);
+    ctx.beginPath();
+    ctx.moveTo(ix2, iy2);
+    ctx.lineTo(ix, iy);
+    ctx.strokeStyle = '#88ffaa';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 4;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Value display
+    const disp = (this.value).toFixed(this.opts.decimals !== undefined ? this.opts.decimals : 2);
+    this.valEl.textContent = disp;
+  }
+
+  _bindEvents() {
+    const c = this.canvas;
+    c.addEventListener('mousedown', e => {
+      this._dragging = true;
+      this._startY = e.clientY;
+      this._startVal = this.value;
+      document.body.style.cursor = 'ns-resize';
+      e.preventDefault();
+    });
+    c.addEventListener('dblclick', () => {
+      this.setValue(this.opts.default !== undefined ? this.opts.default : (this.opts.min+this.opts.max)/2);
+      if (this.opts.onChange) this.opts.onChange(this.value);
+    });
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const range = this.opts.max - this.opts.min;
+      const delta = -e.deltaY * range * 0.002;
+      this.setValue(this.value + delta);
+      if (this.opts.onChange) this.opts.onChange(this.value);
+    }, { passive: false });
+
+    document.addEventListener('mousemove', e => {
+      if (!this._dragging) return;
+      const dy = this._startY - e.clientY;
+      const range = this.opts.max - this.opts.min;
+      const delta = dy * range * 0.006;
+      this.setValue(this._startVal + delta);
+      if (this.opts.onChange) this.opts.onChange(this.value);
+    });
+    document.addEventListener('mouseup', () => {
+      if (this._dragging) { this._dragging = false; document.body.style.cursor = ''; }
+    });
+
+    // Touch
+    c.addEventListener('touchstart', e => {
+      this._dragging = true;
+      this._startY = e.touches[0].clientY;
+      this._startVal = this.value;
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchmove', e => {
+      if (!this._dragging) return;
+      const dy = this._startY - e.touches[0].clientY;
+      const range = this.opts.max - this.opts.min;
+      this.setValue(this._startVal + dy * range * 0.006);
+      if (this.opts.onChange) this.opts.onChange(this.value);
+    }, { passive: false });
+    document.addEventListener('touchend', () => { this._dragging = false; });
+  }
+
+  setValue(v) {
+    this.value = Math.max(this.opts.min, Math.min(this.opts.max, v));
+    this._draw();
+  }
+}
+
+// ─── SECTION BUILDER ─────────────────────────────────────────────────────────
+function makeSection(parent, title, id) {
+  const sec = document.createElement('div');
+  sec.className = 'section';
+  sec.id = 'sec-' + id;
+  const hdr = document.createElement('div');
+  hdr.className = 'section-header';
+  hdr.innerHTML = `<span class="sec-title">${title}</span>`;
+  const body = document.createElement('div');
+  body.className = 'section-body';
+  sec.appendChild(hdr);
+  sec.appendChild(body);
+  parent.appendChild(sec);
+  return body;
+}
+
+function makeKnobRow(parent, knobs) {
+  const row = document.createElement('div');
+  row.className = 'knob-row';
+  parent.appendChild(row);
+  return knobs.map(k => new Knob(row, k));
+}
+
+function makeCheckbox(parent, label, onChange) {
+  const wrap = document.createElement('label');
+  wrap.className = 'led-label';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'led-cb';
+  cb.addEventListener('change', () => onChange(cb.checked));
+  const dot = document.createElement('span');
+  dot.className = 'led-dot';
+  const txt = document.createElement('span');
+  txt.className = 'led-text';
+  txt.textContent = label;
+  wrap.appendChild(cb);
+  wrap.appendChild(dot);
+  wrap.appendChild(txt);
+  parent.appendChild(wrap);
+  return cb;
+}
+
+function makeBtn(parent, label, cls, onClick) {
+  const b = document.createElement('button');
+  b.className = 'vd-btn ' + (cls||'');
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  parent.appendChild(b);
+  return b;
+}
+
+function makeSelect(parent, label, options, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'select-wrap';
+  const lbl = document.createElement('span');
+  lbl.className = 'select-label';
+  lbl.textContent = label;
+  const sel = document.createElement('select');
+  sel.className = 'vd-select';
+  options.forEach(([v,t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => onChange(sel.value));
+  wrap.appendChild(lbl);
+  wrap.appendChild(sel);
+  parent.appendChild(wrap);
+  return sel;
+}
+
+// ─── INIT UI ─────────────────────────────────────────────────────────────────
+function initUI(engine) {
+  const left  = document.getElementById('left-panel');
+  const right = document.getElementById('right-panel');
+  const bot   = document.getElementById('bottom-panel');
+  const p = engine.p;
+
+  // ── INPUT ──
+  const inp = makeSection(left, '◈ INPUT', 'input');
+  const btnRow = document.createElement('div'); btnRow.className = 'btn-row'; inp.appendChild(btnRow);
+  makeBtn(btnRow, 'CONTAIN', '', () => { p.contain=true; p.cover=false; });
+  makeBtn(btnRow, 'COVER', 'btn-active', () => { p.contain=false; p.cover=true; });
+  makeBtn(btnRow, 'CLEAR', 'btn-danger', () => { engine.clearSource(); updateSourceHint(''); });
+  const overlayBtnRow = document.createElement('div'); overlayBtnRow.className = 'btn-row'; inp.appendChild(overlayBtnRow);
+  makeBtn(overlayBtnRow, 'ADD OVERLAY', '', () => document.getElementById('overlay-input').click());
+  makeBtn(overlayBtnRow, 'CLR OVERLAY', 'btn-danger', () => engine.clearOverlay());
+  const cbRow = document.createElement('div'); cbRow.className = 'cb-row'; inp.appendChild(cbRow);
+  const cbFreeze = makeCheckbox(cbRow, 'FREEZE', v => engine.frozen = v);
+  const cbAnim   = makeCheckbox(cbRow, 'ANIMATE', v => { p.animate = v; });
+  cbAnim.checked = true;
+  makeSelect(inp, 'MIRROR', [['0','NONE'],['1','H-FLIP'],['2','V-FLIP'],['3','BOTH']], v => p.mirror = +v);
+
+  // ── CORE ──
+  const core = makeSection(left, '◈ CORE', 'core');
+  makeKnobRow(core, [
+    { label:'HUE',   min:0,  max:1,   value:0,   default:0,   onChange: v => p.hue = v },
+    { label:'SAT',   min:0,  max:2,   value:1,   default:1,   onChange: v => p.sat = v },
+  ]);
+  makeKnobRow(core, [
+    { label:'CON',   min:0,  max:3,   value:1,   default:1,   onChange: v => p.con = v },
+    { label:'BRI',   min:-1, max:1,   value:0,   default:0,   onChange: v => p.bri = v },
+  ]);
+
+  // ── ANALOG FEEDBACK ──
+  const fb = makeSection(left, '◈ ANALOG FEEDBACK', 'feedback');
+  makeKnobRow(fb, [
+    { label:'FEEDBK', min:0, max:1,   value:0, default:0, onChange: v => p.feedback = v },
+    { label:'ROTATE', min:-1,max:1,   value:0, default:0, onChange: v => p.fbRotate = v },
+  ]);
+  makeKnobRow(fb, [
+    { label:'ZOOM',   min:-1,max:1,   value:0, default:0, onChange: v => p.fbZoom = v },
+    { label:'SHIFT X',min:-1,max:1,   value:0, default:0, onChange: v => p.fbShiftX = v },
+  ]);
+  makeKnobRow(fb, [
+    { label:'SHIFT Y',min:-1,max:1, value:0, default:0, onChange: v => p.fbShiftY = v },
+  ]);
+
+  // ── WARP / SCAN / GLITCH ──
+  const wsg = makeSection(left, '◈ WARP / SCAN / GLITCH', 'warp');
+  makeKnobRow(wsg, [
+    { label:'WARP',   min:0, max:1, value:0, default:0, onChange: v => p.warp = v },
+    { label:'SCNLNS', min:0, max:1, value:0, default:0, onChange: v => p.scanlines = v },
+  ]);
+  makeKnobRow(wsg, [
+    { label:'GLITCH', min:0, max:1, value:0, default:0, onChange: v => p.glitch = v },
+  ]);
+  makeSelect(wsg, 'SYMMETRY', [['0','NONE'],['1','MIRROR'],['2','QUAD'],['3','KALEID']], v => p.symmetry = +v);
+
+  // ── DISTORT STAGES ──
+  const dist = makeSection(right, '◈ DISTORT STAGES', 'distort');
+  makeKnobRow(dist, [
+    { label:'DIST A', min:0, max:1, value:0, default:0, onChange: v => p.distA = v },
+    { label:'DIST B', min:0, max:1, value:0, default:0, onChange: v => p.distB = v },
+  ]);
+  makeKnobRow(dist, [
+    { label:'CRUSH',  min:0, max:1, value:0, default:0, onChange: v => p.crush = v },
+    { label:'BLEED',  min:0, max:1, value:0, default:0, onChange: v => p.bleed = v },
+  ]);
+
+  // ── EDGE / KEY / SOLAR / POSTER ──
+  const edge = makeSection(right, '◈ EDGE / KEY / SOLAR', 'edge');
+  makeKnobRow(edge, [
+    { label:'EDGE',   min:0, max:1, value:0, default:0, onChange: v => p.edge = v },
+    { label:'LUMA K', min:0, max:1, value:0, default:0, onChange: v => p.lumaKey = v },
+  ]);
+  makeKnobRow(edge, [
+    { label:'SOLAR',  min:0, max:1, value:0, default:0, onChange: v => p.solarize = v },
+    { label:'POSTER', min:0, max:1, value:0, default:0, onChange: v => p.posterize = v },
+  ]);
+  makeKnobRow(edge, [
+    { label:'THRESH', min:0, max:1, value:0, default:0, onChange: v => p.threshold = v },
+  ]);
+
+  // ── CHROMA PHASE ──
+  const chroma = makeSection(right, '◈ CHROMA PHASE OFFSET', 'chroma');
+  makeKnobRow(chroma, [
+    { label:'RED φ',  min:-1, max:1, value:0, default:0, onChange: v => p.rPhase = v },
+    { label:'GRN φ',  min:-1, max:1, value:0, default:0, onChange: v => p.gPhase = v },
+  ]);
+  makeKnobRow(chroma, [
+    { label:'BLU φ',  min:-1, max:1, value:0, default:0, onChange: v => p.bPhase = v },
+    { label:'φ RATE', min:0,  max:5, value:1, default:1, onChange: v => p.phaseRate = v },
+  ]);
+
+  // ── ANALOG DIRT ──
+  const dirt = makeSection(right, '◈ ANALOG DIRT', 'dirt');
+  makeKnobRow(dirt, [
+    { label:'GRAIN',  min:0, max:1, value:0, default:0, onChange: v => p.grain = v },
+    { label:'SPECKL', min:0, max:1, value:0, default:0, onChange: v => p.speckle = v },
+  ]);
+  makeKnobRow(dirt, [
+    { label:'VIGNET', min:0, max:1, value:0, default:0, onChange: v => p.vignette = v },
+    { label:'CHNOIS', min:0, max:1, value:0, default:0, onChange: v => p.chromaNoise = v },
+  ]);
+  makeKnobRow(dirt, [
+    { label:'CRT',    min:0, max:1, value:0, default:0, onChange: v => p.crt = v },
+    { label:'OV OPC', min:0, max:1, value:0, default:0, onChange: v => p.overlayOpacity = v },
+  ]);
+
+  // ── BOTTOM PANELS ──
+
+  // Perlin
+  const perlin = makeSection(bot, '◈ PERLIN NOISE', 'perlin');
+  perlin.parentElement.classList.add('bot-section');
+  makeKnobRow(perlin, [
+    { label:'AMOUNT', min:0, max:1, value:0, default:0, size:44, onChange: v => p.perlin = v },
+    { label:'SCALE',  min:0.1, max:8, value:1, default:1, size:44, onChange: v => p.perlinScale = v },
+    { label:'SPEED',  min:0, max:5, value:1, default:1, size:44, onChange: v => p.perlinSpeed = v },
+  ]);
+
+  // Flow Field
+  const flow = makeSection(bot, '◈ FLOW FIELD', 'flow');
+  flow.parentElement.classList.add('bot-section');
+  makeKnobRow(flow, [
+    { label:'AMOUNT', min:0, max:1, value:0, default:0, size:44, onChange: v => p.flow = v },
+    { label:'SCALE',  min:0.1, max:8, value:1, default:1, size:44, onChange: v => p.flowScale = v },
+    { label:'SPEED',  min:0, max:5, value:1, default:1, size:44, onChange: v => p.flowSpeed = v },
+  ]);
+
+  // Dither
+  const dith = makeSection(bot, '◈ IMAGE DITHER', 'dither');
+  dith.parentElement.classList.add('bot-section');
+  makeKnobRow(dith, [
+    { label:'AMOUNT', min:0, max:1, value:0, default:0, size:44, onChange: v => p.dither = v },
+    { label:'LEVELS', min:2, max:16, value:4, default:4, size:44, decimals:0, onChange: v => p.ditherLevels = Math.round(v) },
+  ]);
+
+  // Temporal
+  const temp = makeSection(bot, '◈ TEMPORAL ERROR', 'temporal');
+  temp.parentElement.classList.add('bot-section');
+  makeKnobRow(temp, [
+    { label:'AMOUNT', min:0, max:1, value:0, default:0, size:44, onChange: v => p.temporal = v },
+  ]);
+
+  // Export
+  const exp = makeSection(bot, '◈ EXPORT', 'export');
+  exp.parentElement.classList.add('bot-section');
+  const expBody = exp;
+  const recBtn = makeBtn(expBody, '⏺ REC', 'btn-rec', () => {
+    if (engine.isRecording()) {
+      engine.stopRecording();
+      recBtn.textContent = '⏺ REC';
+      recBtn.classList.remove('btn-rec-active');
+    } else {
+      engine.startRecording();
+      recBtn.textContent = '⏹ STOP';
+      recBtn.classList.add('btn-rec-active');
+    }
+  });
+  makeBtn(expBody, '📷 FRAME', '', () => engine.downloadFrame());
+
+  // ── DRAG & DROP + FILE INPUT ──
+  setupFileHandling(engine);
+}
+
+// ─── FILE / DROP HANDLING ────────────────────────────────────────────────────
+function setupFileHandling(engine) {
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const overlayInput = document.getElementById('overlay-input');
+
+  function loadFile(file) {
+    const url = URL.createObjectURL(file);
+    if (file.type.startsWith('image/')) {
+      const img = new Image();
+      img.onload = () => { engine.setSource(img); updateSourceHint(file.name); };
+      img.src = url;
+    } else if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video');
+      vid.loop = true; vid.muted = true; vid.autoplay = true; vid.playsInline = true;
+      vid.src = url;
+      vid.play();
+      engine.setSource(vid);
+      updateSourceHint(file.name);
+    }
+  }
+
+  function loadOverlay(file) {
+    if (!file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => engine.setOverlay(img);
+    img.src = url;
+  }
+
+  // Drop zone
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  // Canvas also accepts drops
+  const canvas = document.getElementById('vd-canvas');
+  canvas.addEventListener('dragover', e => e.preventDefault());
+  canvas.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+  overlayInput.addEventListener('change', e => { if (e.target.files[0]) loadOverlay(e.target.files[0]); });
+}
+
+function updateSourceHint(name) {
+  const el = document.getElementById('source-hint');
+  if (el) el.textContent = name ? `◈ ${name}` : '◈ DROP IMAGE / VIDEO';
+}
+
+
+</script>
+<script>
+
+// ── BOOT ────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('vd-canvas');
+  const engine = new VideodroidEngine(canvas);
+  window._engine = engine;
+  initUI(engine);
+
+  // Animate header meter
+  const bars = document.querySelectorAll('.meter-bar');
+  const baseLevels = [4,8,12,10,6,14,8,5];
+  setInterval(() => {
+    bars.forEach((b,i) => {
+      const t = engine.p.animate ? (Date.now()*0.003 + i*0.7) : 0;
+      const h = baseLevels[i] + Math.sin(t)*4;
+      b.style.height = Math.max(2, h) + 'px';
+      b.style.background = h > 12 ? 'var(--accent2)' : 'var(--accent)';
+      b.style.boxShadow = h > 10 ? '0 0 4px var(--accent)' : '';
+    });
+  }, 50);
+
+  // Tweaks support
+  window.addEventListener('message', e => {
+    if (e.data.type === '__activate_edit_mode') showTweaks();
+    if (e.data.type === '__deactivate_edit_mode') hideTweaks();
+  });
+  window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+});
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "scanlines": 0.08,
+  "crt": 0.71,
+  "vignette": 0,
+  "feedback": 1,
+  "glitch": 0.38
+}/*EDITMODE-END*/;
+
+let tweakPanel = null;
+
+function showTweaks() {
+  if (tweakPanel) { tweakPanel.style.display = 'flex'; return; }
+  tweakPanel = document.createElement('div');
+  tweakPanel.id = 'tweak-panel';
+  tweakPanel.style.cssText = `
+    position:fixed; bottom:160px; right:220px; z-index:1000;
+    background:#0b120b; border:1px solid #2e4a2e;
+    border-radius:4px; padding:10px 12px; display:flex;
+    flex-direction:column; gap:8px; min-width:180px;
+    box-shadow:0 0 20px rgba(58,255,122,0.1), 0 4px 16px rgba(0,0,0,0.8);
+    font-family:'Share Tech Mono', monospace; font-size:10px; color:#7aeeaa;
+  `;
+  tweakPanel.innerHTML = `<div style="font-family:Orbitron,monospace;font-size:9px;letter-spacing:2px;color:#3aff7a;margin-bottom:4px;">TWEAKS</div>`;
+  const tweaks = [
+    ['scanlines','SCANLINES',0,1], ['crt','CRT EFFECT',0,1],
+    ['vignette','VIGNETTE',0,1], ['feedback','FEEDBACK',0,1], ['glitch','GLITCH',0,1]
+  ];
+  tweaks.forEach(([key,label,mn,mx]) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+    row.innerHTML = `<span style="width:70px;font-size:8px;letter-spacing:1px;color:#2a5a3a;">${label}</span>
+      <input type="range" min="${mn}" max="${mx}" step="0.01" value="${TWEAK_DEFAULTS[key]||0}"
+        style="flex:1;accent-color:#3aff7a;height:3px;">
+      <span style="width:32px;text-align:right;font-size:8px;color:#00ff66;">0.00</span>`;
+    const inp = row.querySelector('input');
+    const val = row.querySelector('span:last-child');
+    inp.addEventListener('input', () => {
+      const v = parseFloat(inp.value);
+      val.textContent = v.toFixed(2);
+      if (window._engine) window._engine.p[key] = v;
+      window.parent.postMessage({ type:'__edit_mode_set_keys', edits:{ [key]:v } }, '*');
+    });
+    inp.value = TWEAK_DEFAULTS[key] || 0;
+    val.textContent = parseFloat(inp.value).toFixed(2);
+    tweakPanel.appendChild(row);
+  });
+  document.body.appendChild(tweakPanel);
+}
+
+function hideTweaks() { if (tweakPanel) tweakPanel.style.display = 'none'; }
+
+</script>
+</body>
+</html>
